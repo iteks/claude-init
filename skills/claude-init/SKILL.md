@@ -63,6 +63,8 @@ The project is empty or has minimal boilerplate. Prompt the user to understand t
 
 **After gathering answers**, proceed to Phase 3 using the selected framework to choose templates.
 
+**Before proceeding to Phase 3**, run the suggestion check from Phase 2B.5. Use the selected framework to infer which signals apply (e.g., selecting "Laravel" triggers migration-reviewer and api-reviewer suggestions). If the project has existing code, also scan the filesystem for remaining signals.
+
 ---
 
 ### Phase 2B: Existing Project Mode
@@ -144,6 +146,146 @@ Then proceed to Phase 3.
 
 ---
 
+### Phase 2B.5: Suggest Additional Agents
+
+After confirming the detected stack (Phase 2B) or gathering user answers (Phase 2A), scan for structural signals that indicate additional agents beyond the core three would be useful.
+
+**Detection Table** — check each signal and map to suggested agents:
+
+| Signal | Detection Check | Suggested Agent | Source |
+|---|---|---|---|
+| Database migrations | `database/migrations/` (Laravel), `migrations/` (Django), `prisma/migrations/`, or migration files detected | `migration-reviewer` | Template: `migration-reviewer-{framework}.md` |
+| API routes | `routes/api/` or `app/Http/Controllers/Api/` (Laravel), `app/api/` or `pages/api/` (Next.js), `routers/` (FastAPI) | `api-reviewer` | Template: `api-reviewer-{framework}.md` |
+| ORM models with relationships | 5+ model files containing relationship methods (`hasMany`, `belongsTo`, `HasOne`, `ForeignKey`, `relationship`, `references`) | `performance-reviewer` | Template: `performance-reviewer.md` |
+| Web components (10+ files) | `components/` or `src/components/` with 10+ `.tsx`/`.jsx`/`.vue`/`.blade.php` files | `accessibility-reviewer` | Dynamic (generate from blueprint) |
+| CI/CD config | `.github/workflows/`, `.circleci/`, `.gitlab-ci.yml`, `Jenkinsfile` | `ci-reviewer` | Dynamic (generate from blueprint) |
+| Sparse documentation | No `docs/` directory AND `README.md` under 20 lines (or missing) | `documentation-generator` | Dynamic (generate from blueprint) |
+| 50+ dependencies | Lock file (`package-lock.json`, `composer.lock`, `poetry.lock`, `Cargo.lock`) with 50+ top-level deps | `dependency-analyzer` | Dynamic (generate from blueprint) |
+
+**Signal detection logic:**
+1. For each signal, run the detection check using `Glob` and `Grep`
+2. Only include signals that match — non-triggered signals are not shown
+3. Count files/matches to include in the signal description
+
+**User interaction** — present detected signals:
+
+```
+Based on your project structure, these additional agents would be useful:
+
+  [1] migration-reviewer    — Review migrations for data safety and rollback correctness
+      Signal: database/migrations/ with 23 migration files
+
+  [2] api-reviewer           — Review API endpoints for consistency and error handling
+      Signal: routes/api/ and app/Http/Controllers/Api/ detected
+
+  [3] performance-reviewer   — Detect N+1 queries and algorithmic complexity issues
+      Signal: 12 Eloquent models with relationship definitions
+
+Include suggested agents? [All / Pick numbers / None]
+```
+
+If the user picks "All" or specific numbers, mark those agents for generation in Phase 3. If "None", skip.
+
+**For New Project Mode (Phase 2A)**: After gathering user answers, infer signals from the selected framework:
+- Laravel → always suggest migration-reviewer and api-reviewer
+- Django → always suggest migration-reviewer
+- Next.js/Expo → suggest api-reviewer if API routes type selected
+- All frameworks → check remaining signals via filesystem scan if project has existing code
+
+#### Dynamic Agent Blueprints
+
+For agents marked "Dynamic" in the detection table, generate the agent markdown from these blueprints. Each blueprint specifies the complete frontmatter and focus areas — Claude fills in the detailed review instructions following the same structure as template agents.
+
+**accessibility-reviewer**:
+```yaml
+frontmatter:
+  name: accessibility-reviewer
+  description: >-
+    Review components for accessibility issues.
+    Invoke after creating or modifying UI components, or on demand with "accessibility review".
+  model: sonnet
+  color: purple
+  tools: Read, Grep, Glob
+  permissionMode: plan
+  maxTurns: 15
+  memory: user
+focus_areas:
+  - WCAG 2.1 AA compliance (missing alt text, form labels, heading hierarchy)
+  - Semantic HTML (divs used where nav/main/section/article appropriate)
+  - ARIA attributes (missing or incorrect roles, aria-label, aria-describedby)
+  - Keyboard navigation (missing tabIndex, onKeyDown handlers, focus traps in modals)
+  - Color contrast (hardcoded colors that may fail 4.5:1 ratio)
+  - Touch targets (interactive elements smaller than 44x44px on mobile)
+output_format: Same P0-P3 structure as code-reviewer with WCAG reference codes
+```
+
+**ci-reviewer**:
+```yaml
+frontmatter:
+  name: ci-reviewer
+  description: >-
+    Review CI/CD configuration for efficiency and safety.
+    Invoke after modifying workflow files, or on demand with "review CI config".
+  model: haiku
+  color: gray
+  tools: Read, Grep, Glob
+  permissionMode: plan
+  maxTurns: 10
+  memory: user
+focus_areas:
+  - Caching strategy (missing or misconfigured dependency caching)
+  - Secret management (hardcoded values, overly broad secret access)
+  - Test parallelism (sequential jobs that could run in parallel)
+  - Deployment safety (missing environment protection, no rollback plan)
+  - Resource waste (unnecessary steps, redundant builds)
+  - Version pinning (using latest tags instead of pinned versions)
+output_format: Same P0-P3 structure as code-reviewer
+```
+
+**documentation-generator**:
+```yaml
+frontmatter:
+  name: documentation-generator
+  description: >-
+    Generate missing documentation for the project.
+    Invoke with "generate docs" or when documentation gaps are identified.
+  model: sonnet
+  color: green
+  tools: Read, Grep, Glob, Write, Edit
+  permissionMode: acceptEdits
+  maxTurns: 20
+  memory: user
+focus_areas:
+  - API documentation (endpoint descriptions, request/response examples)
+  - README sections (installation, usage, configuration, contributing)
+  - Architecture overview (directory structure, key abstractions, data flow)
+  - Environment setup (required env vars, local development steps)
+output_format: Generates markdown files directly, reports what was created
+```
+
+**dependency-analyzer**:
+```yaml
+frontmatter:
+  name: dependency-analyzer
+  description: >-
+    Analyze project dependencies for issues.
+    Invoke with "analyze dependencies" or periodically for maintenance.
+  model: haiku
+  color: gray
+  tools: Read, Grep, Glob, Bash
+  permissionMode: plan
+  maxTurns: 10
+  memory: user
+focus_areas:
+  - Known vulnerabilities (check against advisory databases via package manager audit commands)
+  - Unused dependencies (imported in lock file but not referenced in source)
+  - License conflicts (incompatible licenses in dependency tree)
+  - Outdated packages (major version behind, end-of-life)
+output_format: Table format grouped by severity (Critical/High/Medium/Low)
+```
+
+---
+
 ### Phase 2C: Audit Mode
 
 The project already has `.claude/` configuration. Scan for gaps and improvements.
@@ -195,6 +337,10 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
   - `maxTurns` is set (prevents runaway execution)
   - `description` includes invocation guidance (when/how to use the agent)
   - Tool list is appropriate: reviewers should have `Read, Grep, Glob` only (NOT Write/Edit/Bash); test-generator should have `Read, Grep, Glob, Write, Edit, Bash`
+- **Suggested agents** — check for additional agents that should exist based on detected signals:
+  - Run the detection table from Phase 2B.5 against the project
+  - For each triggered signal where the corresponding agent doesn't exist in `.claude/agents/`, report it as a suggestion (not a gap — these are optional)
+  - Format: `[suggested] migration-reviewer — Signal: database/migrations/ with 23 files`
 - Report quality issues alongside missing agents
 
 #### 5. Settings Audit
@@ -255,16 +401,16 @@ Based on the detected/selected framework, generate the Claude Code configuration
 
 Templates are located at `./templates/` relative to this SKILL.md file. Read the appropriate template files for the detected stack:
 
-| Stack | Settings | Hooks | Rules | CLAUDE.md | Agents |
-|---|---|---|---|---|---|
-| PHP/Laravel | `php-laravel.json` | `universal/*`, `php/format-php.sh` | `php/*` | `php-laravel.md` | `code-reviewer.md`, `security-reviewer-php.md`, `test-generator-pest.md` (if Pest detected) |
-| JS/Next.js | `js-nextjs.json` | `universal/*`, `javascript/*` | `javascript/*` | `js-nextjs.md` | `code-reviewer.md`, `security-reviewer-js.md`, `test-generator-jest.md` or `test-generator-vitest.md` (if detected) |
-| JS/Expo | `js-expo.json` | `universal/*`, `javascript/*` | `javascript/*` | `js-expo.md` | `code-reviewer.md`, `security-reviewer-js.md`, `test-generator-jest.md` (if Jest detected) |
-| Python/Django | `python-django.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-django.md` | `code-reviewer.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) |
-| Python/FastAPI | `python-fastapi.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-fastapi.md` | `code-reviewer.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) |
-| Go | `generic.json` | `universal/*`, `go/format-go.sh` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` |
-| Rust | `generic.json` | `universal/*`, `rust/format-rust.sh` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` |
-| Other | `generic.json` | `universal/*` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` |
+| Stack | Settings | Hooks | Rules | CLAUDE.md | Agents | Suggested Agents |
+|---|---|---|---|---|---|---|
+| PHP/Laravel | `php-laravel.json` | `universal/*`, `php/format-php.sh` | `php/*` | `php-laravel.md` | `code-reviewer.md`, `security-reviewer-php.md`, `test-generator-pest.md` (if Pest detected) | `migration-reviewer-laravel.md`, `api-reviewer-laravel.md`, `performance-reviewer.md` (conditional on signals) |
+| JS/Next.js | `js-nextjs.json` | `universal/*`, `javascript/*` | `javascript/*` | `js-nextjs.md` | `code-reviewer.md`, `security-reviewer-js.md`, `test-generator-jest.md` or `test-generator-vitest.md` (if detected) | `api-reviewer-generic.md`, `performance-reviewer.md` (conditional on signals) |
+| JS/Expo | `js-expo.json` | `universal/*`, `javascript/*` | `javascript/*` | `js-expo.md` | `code-reviewer.md`, `security-reviewer-js.md`, `test-generator-jest.md` (if Jest detected) | `api-reviewer-generic.md`, `performance-reviewer.md` (conditional on signals) |
+| Python/Django | `python-django.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-django.md` | `code-reviewer.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) | `migration-reviewer-django.md`, `api-reviewer-generic.md`, `performance-reviewer.md` (conditional on signals) |
+| Python/FastAPI | `python-fastapi.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-fastapi.md` | `code-reviewer.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) | `api-reviewer-generic.md`, `performance-reviewer.md` (conditional on signals) |
+| Go | `generic.json` | `universal/*`, `go/format-go.sh` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` | `performance-reviewer.md` (conditional on signals) |
+| Rust | `generic.json` | `universal/*`, `rust/format-rust.sh` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` | `performance-reviewer.md` (conditional on signals) |
+| Other | `generic.json` | `universal/*` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` | (conditional on signals) |
 
 #### File Generation
 
@@ -296,6 +442,9 @@ Generate the following agents:
   - Vitest detected → `test-generator-vitest.md`
   - pytest detected → `test-generator-pytest.md`
   - No test framework detected → skip test-generator
+- **Suggested agents** (from Phase 2B.5): For each accepted suggestion:
+  - **Template agents** (migration-reviewer, api-reviewer, performance-reviewer): Copy the appropriate template from `templates/agents/` just like core agents. Select the framework-specific variant (e.g., `migration-reviewer-laravel.md` for Laravel, `migration-reviewer-generic.md` as fallback).
+  - **Dynamic agents** (accessibility-reviewer, ci-reviewer, documentation-generator, dependency-analyzer): Generate the full agent markdown using the blueprint from Phase 2B.5. Write YAML frontmatter exactly as specified in the blueprint, then generate review instructions, categories, output format, and guidelines sections following the same structure as template agents.
 
 **5. `CLAUDE.md`**
 - Read the template for the detected stack
@@ -364,6 +513,8 @@ Project config created:
     code-reviewer.md          — code quality review agent
     security-reviewer.md      — PHP security review agent
     test-generator.md         — Pest test generation agent
+    migration-reviewer.md     — migration safety review agent (suggested)
+    api-reviewer.md           — API consistency review agent (suggested)
   CLAUDE.md                   — project overview + conventions (189 lines)
 
 Next steps:

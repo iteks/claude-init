@@ -142,7 +142,12 @@ Scans your existing setup, reports gaps, and offers to fix them without overwrit
 └── agents/
     ├── code-reviewer.md       # Code quality review agent (all projects)
     ├── security-reviewer.md   # Security review agent for your stack
-    └── test-generator.md      # Test generation agent (when test framework detected)
+    ├── test-generator.md      # Test generation agent (when test framework detected)
+    └── ...                    # Additional agents based on project signals:
+        # migration-reviewer.md   — when migrations detected
+        # api-reviewer.md         — when API routes detected
+        # performance-reviewer.md — when ORM models with relationships detected
+        # + dynamic agents (accessibility, CI, docs, dependencies)
 
 CLAUDE.md                      # Project overview, conventions, workflow automation (<300 lines)
 ```
@@ -163,18 +168,36 @@ CLAUDE.md                      # Project overview, conventions, workflow automat
 
 ---
 
+### Codebase-Aware Agent Suggestions
+
+Beyond the core three agents (code-reviewer, security-reviewer, test-generator), claude-init scans your project structure for signals that indicate additional agents would be useful.
+
+| Signal | What's Detected | Agent Generated |
+|---|---|---|
+| Database migrations | `database/migrations/`, `prisma/migrations/`, etc. | `migration-reviewer` — reviews migrations for data safety and rollback correctness |
+| API routes | `routes/api/`, `app/Http/Controllers/Api/`, `pages/api/`, etc. | `api-reviewer` — reviews API endpoints for consistency and error handling |
+| ORM relationships | 5+ models with relationship definitions | `performance-reviewer` — detects N+1 queries and complexity issues |
+| Web components | 10+ component files | `accessibility-reviewer` — checks WCAG 2.1 AA compliance |
+| CI/CD config | `.github/workflows/`, `.circleci/`, etc. | `ci-reviewer` — reviews pipeline efficiency and safety |
+| Sparse docs | Missing or minimal README/docs | `documentation-generator` — generates missing documentation |
+| 50+ dependencies | Large dependency tree in lock file | `dependency-analyzer` — checks for CVEs, unused deps, license conflicts |
+
+Agents are suggested — not forced. You choose which to include during setup.
+
+---
+
 ## Supported Stacks
 
-| Stack | Hooks | Rules | Agents | Settings | CLAUDE.md |
-|---|---|---|---|---|---|
-| PHP / Laravel | format-php, guard-env, guard-push, migration-guard | testing-pest, migration-safety, api-conventions | code-reviewer, security-reviewer-php, test-generator-pest | laravel-boost, php-lsp, pest plugins | Full template |
-| JS / Next.js | lint-changed, typecheck-changed, guard-config, guard-env, guard-push | testing-jest/vitest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest/vitest | typescript-lsp plugins | Full template |
-| JS / Expo | lint-changed, typecheck-changed, guard-config, guard-push | testing-jest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest | typescript-lsp plugins | Full template |
-| Python / Django | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest | python plugins | Full template |
-| Python / FastAPI | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest | python plugins | Full template |
-| Go | format-go, guard-env, guard-push | — | code-reviewer, security-reviewer-generic | — | Generic template |
-| Rust | format-rust, guard-env, guard-push | — | code-reviewer, security-reviewer-generic | — | Generic template |
-| Other | guard-env, guard-push | — | code-reviewer, security-reviewer-generic | — | Generic template |
+| Stack | Hooks | Rules | Agents | Suggested Agents | Settings | CLAUDE.md |
+|---|---|---|---|---|---|---|
+| PHP / Laravel | format-php, guard-env, guard-push, migration-guard | testing-pest, migration-safety, api-conventions | code-reviewer, security-reviewer-php, test-generator-pest | migration-reviewer, api-reviewer, performance-reviewer | laravel-boost, php-lsp, pest plugins | Full template |
+| JS / Next.js | lint-changed, typecheck-changed, guard-config, guard-env, guard-push | testing-jest/vitest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest/vitest | api-reviewer, performance-reviewer | typescript-lsp plugins | Full template |
+| JS / Expo | lint-changed, typecheck-changed, guard-config, guard-push | testing-jest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest | api-reviewer, performance-reviewer | typescript-lsp plugins | Full template |
+| Python / Django | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest | migration-reviewer, api-reviewer, performance-reviewer | python plugins | Full template |
+| Python / FastAPI | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest | api-reviewer, performance-reviewer | python plugins | Full template |
+| Go | format-go, guard-env, guard-push | — | code-reviewer, security-reviewer-generic | performance-reviewer | — | Generic template |
+| Rust | format-rust, guard-env, guard-push | — | code-reviewer, security-reviewer-generic | performance-reviewer | — | Generic template |
+| Other | guard-env, guard-push | — | code-reviewer, security-reviewer-generic | (signal-based) | — | Generic template |
 
 **Adding a new stack?** See [Contributing](#contributing).
 
