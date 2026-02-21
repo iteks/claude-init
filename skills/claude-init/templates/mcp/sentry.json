@@ -1,0 +1,11 @@
+{
+  "sentry": {
+    "command": "npx",
+    "args": ["-y", "@anthropic/claude-code-sentry"],
+    "env": {
+      "SENTRY_AUTH_TOKEN": "YOUR_SENTRY_AUTH_TOKEN",
+      "SENTRY_ORG": "YOUR_SENTRY_ORG",
+      "SENTRY_PROJECT": "YOUR_SENTRY_PROJECT"
+    }
+  }
+}
