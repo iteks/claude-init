@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Analyze any project and generate optimal Claude Code integration — hooks, rules, agents, settings, and CLAUDE.md — in one command.
+Analyze any project and generate optimal Claude Code integration — hooks, rules, agents, skills, commands, MCP servers, settings, and CLAUDE.md — in one command.
 
 ---
 
@@ -12,6 +12,12 @@ Analyze any project and generate optimal Claude Code integration — hooks, rule
 
 - **Detects your stack** — language, framework, test runner, linter, formatter, package manager
 - **Generates `.claude/` config** — format-on-save hooks, safety guards, path-scoped rules, security review agents
+- **Detects dev commands** — extracts scripts from package.json, Makefile, composer.json, and more
+- **Suggests MCP servers** — detects Sentry, GitHub, Slack, Figma dependencies and generates `.mcp.json`
+- **Generates slash commands** — creates `/review-changes`, `/run-tests`, `/dev` commands
+- **Scaffolds skills** — creates guided workflows like `/new-api-endpoint` for detected patterns
+- **Suggests plugins** — recommends official marketplace plugins (LSP, GitHub, Sentry, etc.)
+- **Tunes permissions** — auto-approves test/lint/format commands, blocks dangerous operations
 - **Optimizes global settings** — permission pre-approvals, safety denials, Agent Teams
 - **Keeps CLAUDE.md under 300 lines** — distributes conventions into rules and skills so Claude actually follows them
 
@@ -130,25 +136,30 @@ Scans your existing setup, reports gaps, and offers to fix them without overwrit
 
 ```
 .claude/
-├── settings.json              # Hooks, permissions, settings
+├── settings.json              # Hooks, permissions (allow + deny), settings
 ├── hooks/
 │   ├── guard-git-push.sh      # Prompts before git push
 │   ├── guard-env.sh           # Blocks .env edits (use .env.example)
-│   └── format-php.sh          # Auto-formats PHP with Duster/Pint on every edit
+│   ├── format-php.sh          # Auto-formats PHP with Duster/Pint on every edit
+│   └── lint-shellcheck.sh     # Runs shellcheck on shell scripts (shell projects)
 ├── rules/
 │   ├── testing-pest.md        # Pest conventions scoped to tests/**
 │   ├── migration-safety.md    # Migration safety scoped to database/migrations/**
 │   └── api-conventions.md     # API conventions scoped to routes/api/**, Controllers/Api/**
-└── agents/
-    ├── code-reviewer.md       # Code quality review agent (all projects)
-    ├── security-reviewer.md   # Security review agent for your stack
-    ├── test-generator.md      # Test generation agent (when test framework detected)
-    └── ...                    # Additional agents based on project signals:
-        # migration-reviewer.md   — when migrations detected
-        # api-reviewer.md         — when API routes detected
-        # performance-reviewer.md — when ORM models with relationships detected
-        # + dynamic agents (accessibility, CI, docs, dependencies)
+├── agents/
+│   ├── code-reviewer.md       # Code quality review agent (all projects)
+│   ├── security-reviewer.md   # Security review agent for your stack
+│   ├── test-generator.md      # Test generation agent (when test framework detected)
+│   └── ...                    # Additional agents based on project signals
+├── skills/                    # Guided workflows (when patterns detected)
+│   ├── new-api-endpoint/      # /new-api-endpoint — scaffold API endpoints
+│   └── new-test-suite/        # /new-test-suite — scaffold test files
+└── commands/                  # Slash commands
+    ├── review-changes.md      # /review-changes — review uncommitted changes
+    ├── run-tests.md           # /run-tests — run test suite
+    └── dev.md                 # /dev — start dev server
 
+.mcp.json                      # MCP server configs (Sentry, GitHub, Slack, Figma)
 CLAUDE.md                      # Project overview, conventions, workflow automation (<300 lines)
 ```
 
@@ -165,6 +176,12 @@ CLAUDE.md                      # Project overview, conventions, workflow automat
 | `security-reviewer.md` | On-demand security audit | Catches OWASP Top 10 in code reviews |
 | `test-generator.md` | On-demand test generation | Creates tests matching your framework and conventions |
 | `CLAUDE.md` | Project context + workflow automation | Claude plans, reviews, and manages context proactively |
+| `lint-shellcheck.sh` | Runs shellcheck after editing `.sh` files | Catches shell script bugs automatically |
+| `skills/*/SKILL.md` | Guided workflows for common project tasks | `/new-api-endpoint` scaffolds a complete endpoint |
+| `commands/*.md` | Quick slash commands | `/review-changes` reviews uncommitted changes |
+| `.mcp.json` | MCP server integrations | Connects Claude to Sentry, GitHub, Slack, Figma |
+| `permissions.allow` | Pre-approved commands | Stops "Allow?" prompts for test/lint/format commands |
+| `permissions.deny` | Blocked commands | Prevents `rm -rf`, `migrate:fresh`, dangerous ops |
 
 ---
 
@@ -186,18 +203,122 @@ Agents are suggested — not forced. You choose which to include during setup.
 
 ---
 
+### MCP Server Integration
+
+claude-init detects project dependencies that have official Anthropic MCP servers and generates `.mcp.json` configuration:
+
+| Signal | Detection | MCP Server |
+|---|---|---|
+| Sentry SDK | `@sentry/node`, `sentry-sdk`, `sentry/sentry-laravel` in deps | `@anthropic/claude-code-sentry` |
+| GitHub remote | `github.com` in `.git/config` | `@anthropic/claude-code-github` |
+| Slack SDK | `@slack/web-api`, `@slack/bolt` in deps | `@anthropic/claude-code-slack` |
+| Figma references | Figma URLs in source files, `figma-api` in deps | `@anthropic/claude-code-figma` |
+
+MCP configs include placeholder tokens that you fill in after generation. `.mcp.json` is added to `.gitignore` (it contains auth tokens).
+
+---
+
+### Custom Skill Generation
+
+When common project patterns are detected, claude-init generates guided skill workflows:
+
+| Signal | Skill Generated | Usage |
+|---|---|---|
+| Laravel API routes | `/new-api-endpoint` | Scaffolds route + controller + resource + form request + tests |
+| React/Expo components (10+) | `/new-component` | Scaffolds component + props + test file |
+| Django apps | `/new-django-app` | Scaffolds app with models + views + URLs + tests |
+| Any test framework | `/new-test-suite` | Scaffolds tests for existing code |
+| FastAPI routers | `/new-router` | Scaffolds router + schemas + service + tests |
+
+---
+
+### Slash Commands
+
+Every project gets useful slash commands generated in `.claude/commands/`:
+
+| Command | Purpose | Available When |
+|---|---|---|
+| `/review-changes` | Review uncommitted changes for bugs and quality | Always |
+| `/run-tests` | Run the test suite with smart defaults | Test framework detected |
+| `/dev` | Start the development server | Dev command detected |
+
+---
+
+### Plugin Suggestions
+
+claude-init detects your stack and suggests official marketplace plugins to install:
+
+**LSP Plugins** (code intelligence — jump to definition, find references, diagnostics):
+
+| Language | Plugin | Install |
+|---|---|---|
+| TypeScript | `typescript-lsp` | `/plugin install typescript-lsp@claude-plugins-official` |
+| Python | `pyright-lsp` | `/plugin install pyright-lsp@claude-plugins-official` |
+| PHP | `php-lsp` | `/plugin install php-lsp@claude-plugins-official` |
+| Go | `gopls-lsp` | `/plugin install gopls-lsp@claude-plugins-official` |
+| Rust | `rust-analyzer-lsp` | `/plugin install rust-analyzer-lsp@claude-plugins-official` |
+
+**Integration Plugins**: `github`, `sentry`, `slack`, `figma` — suggested when corresponding dependencies are detected.
+
+Plugin install commands are included in the Phase 5 report.
+
+---
+
+### Per-Project Permissions
+
+claude-init generates `permissions.allow` and `permissions.deny` arrays in `.claude/settings.json` based on detected tools:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan test*)",
+      "Bash(./vendor/bin/pest*)",
+      "Bash(./vendor/bin/duster fix*)",
+      "Bash(composer install*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(php artisan migrate:fresh*)",
+      "Bash(php artisan migrate:reset*)"
+    ]
+  }
+}
+```
+
+This eliminates "Allow?" prompts for safe commands while blocking dangerous operations.
+
+---
+
+### Dev Command Detection
+
+claude-init reads your project's command sources and maps them to canonical slots:
+
+| Source | Commands Extracted |
+|---|---|
+| `package.json` scripts | dev, build, test, lint, format, start, typecheck |
+| `composer.json` scripts | test, lint, format |
+| `Makefile` targets | Any matching canonical slot names |
+| `Justfile` recipes | Any matching canonical slot names |
+| `Taskfile.yml` tasks | Any matching canonical slot names |
+| `pyproject.toml` scripts | Any matching canonical slot names |
+
+Detected commands populate CLAUDE.md dev instructions, generate permission allow patterns, and configure `/run-tests` and `/dev` command templates.
+
+---
+
 ## Supported Stacks
 
-| Stack | Hooks | Rules | Agents | Suggested Agents | Settings | CLAUDE.md |
-|---|---|---|---|---|---|---|
-| PHP / Laravel | format-php, guard-env, guard-push, migration-guard | testing-pest, migration-safety, api-conventions | code-reviewer, security-reviewer-php, test-generator-pest | migration-reviewer, api-reviewer, performance-reviewer | laravel-boost, php-lsp, pest plugins | Full template |
-| JS / Next.js | lint-changed, typecheck-changed, guard-config, guard-env, guard-push | testing-jest/vitest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest/vitest | api-reviewer, performance-reviewer | typescript-lsp plugins | Full template |
-| JS / Expo | lint-changed, typecheck-changed, guard-config, guard-push | testing-jest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest | api-reviewer, performance-reviewer | typescript-lsp plugins | Full template |
-| Python / Django | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest | migration-reviewer, api-reviewer, performance-reviewer | python plugins | Full template |
-| Python / FastAPI | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest | api-reviewer, performance-reviewer | python plugins | Full template |
-| Go | format-go, guard-env, guard-push | — | code-reviewer, security-reviewer-generic | performance-reviewer | — | Generic template |
-| Rust | format-rust, guard-env, guard-push | — | code-reviewer, security-reviewer-generic | performance-reviewer | — | Generic template |
-| Other | guard-env, guard-push | — | code-reviewer, security-reviewer-generic | (signal-based) | — | Generic template |
+| Stack | Hooks | Rules | Agents | Skills | Commands | MCP | Permissions |
+|---|---|---|---|---|---|---|---|
+| PHP / Laravel | format-php, guard-env, guard-push, migration-guard | testing-pest, migration-safety, api-conventions | code-reviewer, security-reviewer-php, test-generator-pest + suggested | new-api-endpoint, new-test-suite | review-changes, run-tests, dev | Sentry, GitHub | test, format, artisan |
+| JS / Next.js | lint-changed, typecheck-changed, guard-config, guard-env, guard-push | testing-jest/vitest, component-conventions | code-reviewer, security-reviewer-js, test-generator + suggested | new-component, new-test-suite | review-changes, run-tests, dev | GitHub | test, lint, npm |
+| JS / Expo | lint-changed, typecheck-changed, guard-config, guard-push | testing-jest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest + suggested | new-component, new-test-suite | review-changes, run-tests, dev | GitHub | test, lint, npm |
+| Python / Django | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest + suggested | new-django-app, new-test-suite | review-changes, run-tests, dev | Sentry, GitHub | test, format, manage.py |
+| Python / FastAPI | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest + suggested | new-router, new-test-suite | review-changes, run-tests, dev | GitHub | test, format, pip |
+| Go | format-go, guard-env, guard-push | — | code-reviewer, security-reviewer-generic + suggested | new-test-suite | review-changes, run-tests | GitHub | test, go |
+| Rust | format-rust, guard-env, guard-push | — | code-reviewer, security-reviewer-generic + suggested | new-test-suite | review-changes, run-tests | GitHub | test, cargo |
+| Other | guard-env, guard-push, shellcheck (if shell) | — | code-reviewer, security-reviewer-generic | new-test-suite (if tests) | review-changes | GitHub (if remote) | detected tools |
 
 **Adding a new stack?** See [Contributing](#contributing).
 
@@ -218,31 +339,40 @@ Agents are suggested — not forced. You choose which to include during setup.
          v             v
   +-- Phase 2A --+  +-- Phase 2B --------+
   | Prompt user  |  | Detect stack       |
-  | (main        |  | (subagent: haiku)  |
-  |  session)    |  | -> structured      |
-  +---------+----+  |    summary         |
+  | (main        |  | + dev commands     |
+  |  session)    |  | + infrastructure   |
+  +---------+----+  | (subagent: haiku)  |
             |       +--------+-----------+
             |                |
-            |    +-- Phase 2B.5 ---------+
-            |    | Signal scan           |
-            |    | (same subagent)       |
-            |    +--------+--------------+
+            |    +-- Phase 2B.5-2B.9 ------+
+            |    | Signal scan             |
+            |    | Agent suggestions       |
+            |    | MCP server suggestions  |
+            |    | Skill suggestions       |
+            |    | Plugin + cmd suggestions|
+            |    | (same subagent)         |
+            |    +--------+----------------+
             +------+------+
                    v
           User confirms stack
-          User selects agents
+          User selects agents, skills,
+          MCP servers, commands, plugins
             (main session)
                    |
                    v
           +-- Phase 3+4 -----------+
           | Generate + Validate    |
           | (subagent: sonnet)     |
-          | -> file creation       |
-          |    summary             |
+          | -> settings.json       |
+          |    hooks, rules, agents|
+          |    skills, commands    |
+          |    .mcp.json, CLAUDE.md|
+          |    permissions         |
           +---------+--------------+
                     v
           +-- Phase 5 -------------+
           | Report results         |  (main session)
+          | Plugin install cmds    |
           | Suggest next steps     |
           +------------------------+
 ```
@@ -253,8 +383,8 @@ Agents are suggested — not forced. You choose which to include during setup.
 
 claude-init delegates heavy file-scanning and template-generation phases to subagents. This keeps the main session's context window clean:
 
-- **Detection** (Phase 2B + 2B.5) runs in a haiku subagent — all lock file reading, convention extraction, and signal scanning happens outside the main context
-- **Generation** (Phase 3 + 4) runs in a sonnet subagent — template reading, placeholder replacement, file writing, and validation happen outside the main context
+- **Detection** (Phase 2B + 2B.5-2B.9) runs in a haiku subagent — all lock file reading, convention extraction, signal scanning, and MCP/skill/plugin detection happens outside the main context
+- **Generation** (Phase 3 + 4) runs in a sonnet subagent — template reading, placeholder replacement, file writing, permission generation, and validation happen outside the main context
 - **The main session** handles only Phase 1 (three file checks), user interaction (prompts, confirmations), and Phase 5 (displaying the summary)
 
 After `/claude-init` completes, the session is ready for productive work without needing `/compact` or `/clear`.
@@ -278,6 +408,11 @@ The audit is the key differentiator for teams already using Claude Code. Here's 
 | **Agents** | Incorrect frontmatter (`allowed-tools` instead of `tools`) | Agent may not function correctly |
 | **Settings** | Missing hooks or permissions | Detected formatter but no auto-format hook |
 | **Hygiene** | `settings.local.json` not in `.gitignore` | Machine-specific config being committed |
+| **MCP** | MCP configs for detected services | Sentry SDK found but no `.mcp.json` entry |
+| **Skills** | Skills for detected project patterns | API routes exist but no `/new-api-endpoint` skill |
+| **Commands** | Common slash commands | No `/review-changes` or `/run-tests` commands |
+| **Permissions** | Allow/deny patterns for detected tools | Pest detected but no test command pre-approved |
+| **Plugins** | Official marketplace plugins for detected stack | TypeScript project without LSP plugin |
 
 ### Merge Behavior
 
@@ -303,6 +438,13 @@ When fixing gaps:
 | CLAUDE.md right-sizing | Under 300 lines | No limit | No limit | No limit |
 | Empty project support | Prompted flow | None | Prompted | Prompted |
 | External dependencies | Minimal (bash + jq) | None | None | Python 3.12 + API keys |
+| MCP server detection | Automatic | None | None | None |
+| Skill generation | Framework-specific | None | None | None |
+| Command generation | Common workflows | None | None | None |
+| Plugin suggestions | Official marketplace | None | None | None |
+| Permission tuning | Per-project allow/deny | None | None | None |
+| Dev command extraction | Multi-source | None | None | None |
+| Self-configuration | Full .claude/ setup | None | None | None |
 | Distribution | Git clone + global skill | Git clone | Git clone | pip install |
 
 ---
@@ -363,6 +505,10 @@ Yes. Clone wherever you want. The symlink points to wherever you cloned it.
 6. Add detection logic to `skills/claude-init/SKILL.md` (Phase 2B detection tables)
 7. Add template mapping to Phase 3 template selection table
 8. Submit a PR
+
+### Self-Configuration
+
+This repo uses its own `.claude/` configuration — hooks, rules, and agents are set up for developing claude-init itself. See `.claude/rules/template-conventions.md` and `.claude/rules/contributing.md` for detailed conventions.
 
 ### Reporting Issues
 
