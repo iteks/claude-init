@@ -41,13 +41,23 @@ Analyze the project at {path}. Follow the detection sequence:
 3. Test framework detection (pestphp, jest, vitest, pytest)
 4. Formatter/linter detection (duster, pint, eslint, prettier, ruff, black, gofmt, rustfmt)
 5. Package manager detection (bun, pnpm, yarn, npm, pipenv, poetry, uv)
+5.5. Dev command extraction — read package.json scripts, composer.json scripts, Makefile targets, Justfile recipes, Taskfile.yml tasks, pyproject.toml scripts, Procfile processes. Map to canonical slots: dev, build, test, lint, format, start, typecheck.
 6. Convention extraction (read 2-3 source files for indent style, naming, imports)
+6b. Build & infrastructure detection — check for Makefile, Justfile, Taskfile.yml, Dockerfile/docker-compose.yml, .devcontainer/, monorepo markers (pnpm-workspace.yaml, nx.json, turbo.json, lerna.json), .editorconfig, .tool-versions/.mise.toml
 7. Signal scan (migrations, API routes, ORM models, components, CI/CD, docs, dependencies)
+7b. MCP dependency scan — check for Sentry SDK (@sentry/node, sentry-sdk, sentry/sentry-laravel), GitHub remote in .git/config, Slack SDK (@slack/web-api, @slack/bolt), Figma references (figma.com URLs in .md/source files, figma-api in deps)
+8. Plugin & command scan — check for existing .claude/commands/ directory, installed plugins (extraKnownMarketplaces or enabledPlugins in settings), and detect signals for official marketplace plugins: TypeScript (tsconfig.json), Python (pyproject.toml), PHP (composer.json), Go (go.mod), Rust (Cargo.toml) for LSP plugins; GitHub remote for github plugin; Sentry/Slack/Figma (reuse MCP signals) for integration plugins
 
 Return a structured summary:
   Stack: Language, Framework, Test Framework, Formatter, Package Manager
+  Dev Commands: Source file, command map (dev, build, test, lint, format, start, typecheck)
+  Infrastructure: Build tools, containerization, monorepo type, editorconfig settings, version manager
   Conventions: Indentation, Naming, Import Style
   Signals: For each of the 7 signals, state detected/not-detected with file counts
+  MCP Signals: For each of the 4 MCP checks, state detected/not-detected with package name
+  Skill Signals: For each applicable skill template, state triggered/not-triggered with evidence
+  Plugin Signals: For each official marketplace plugin, state suggested/not-needed with reason
+  Existing Commands: List any .claude/commands/ files found
 ```
 
 Generation subagent prompt:
@@ -179,11 +189,54 @@ The project has source code but no Claude Code configuration. Detect the stack a
 | `poetry.lock` | poetry |
 | `uv.lock` | uv |
 
+#### Build & Infrastructure Detection
+| Check | Signal | Data to Extract |
+|---|---|---|
+| `Makefile` | Make build system | Target names (parse `^[a-zA-Z_-]+:` lines) |
+| `Justfile` | Just command runner | Recipe names |
+| `Taskfile.yml` | Task runner | Task names from `tasks:` keys |
+| `Dockerfile` or `docker-compose.yml` | Containerized | Service names, base image |
+| `.devcontainer/` | Dev container | Presence flag |
+| `pnpm-workspace.yaml`, `nx.json`, `turbo.json`, or `lerna.json` | Monorepo | Workspace packages |
+| `.editorconfig` | EditorConfig | `indent_style`, `indent_size` (use to confirm/override convention extraction) |
+| Majority `.sh` files + `shellcheck` available on PATH | Shell-heavy project | Flag for shellcheck lint hook |
+| `.tool-versions` or `.mise.toml` | Version manager | Runtime versions |
+
+#### Dev Command Detection
+
+Extract dev commands from the following sources. For each source found, read and extract the relevant commands:
+
+| Source | Detection | Extraction |
+|---|---|---|
+| `package.json` | File exists | Read `scripts` object — keys are command names, values are the commands |
+| `composer.json` | File exists | Read `scripts` object |
+| `Makefile` | File exists | Parse `^[a-zA-Z_-]+:` to get target names |
+| `Justfile` | File exists | Parse recipe names (lines starting with identifier followed by `:`) |
+| `Taskfile.yml` | File exists | Read `tasks:` top-level keys |
+| `pyproject.toml` | `[project.scripts]` or `[tool.poetry.scripts]` section exists | Read script name:command pairs |
+| `Procfile` | File exists | Read process:command pairs |
+
+**Key command mapping** — map extracted script names to canonical slots:
+
+| Canonical Slot | Common Script Names |
+|---|---|
+| `dev` | `dev`, `serve`, `start:dev`, `develop`, `watch` |
+| `build` | `build`, `compile`, `production` |
+| `test` | `test`, `test:unit`, `test:feature`, `pest`, `jest`, `vitest`, `pytest` |
+| `lint` | `lint`, `lint:fix`, `check`, `analyze`, `stan` |
+| `format` | `format`, `fmt`, `fix`, `cs-fix`, `prettier` |
+| `start` | `start`, `up`, `run` |
+| `typecheck` | `typecheck`, `type-check`, `tsc`, `types` |
+
+If the same slot maps from multiple sources, prefer `package.json` > `composer.json` > `Makefile` > others.
+
 **Convention extraction** — read a few representative source files to detect:
 - Indentation style (tabs vs spaces, how many)
 - Naming conventions (camelCase, snake_case, PascalCase)
 - Import style and organization
 - Directory structure patterns
+- If `.editorconfig` was found in infrastructure detection, use its `indent_style` and `indent_size` as authoritative values (override source file heuristics)
+- If dev commands were extracted, include the command map in the stack summary for use in CLAUDE.md placeholder replacement
 
 **Report findings** to the user before proceeding:
 ```
@@ -193,6 +246,8 @@ Detected stack:
   Testing:     Pest
   Formatter:   Duster
   Package Mgr: Composer
+  Dev Commands: dev → php artisan serve, test → php artisan test, lint → ./vendor/bin/duster lint
+  Infrastructure: Docker (docker-compose.yml), Makefile (12 targets)
 
 Proceed with generating Claude Code config? [Yes / Customize / Skip]
 ```
@@ -339,6 +394,113 @@ focus_areas:
 output_format: Table format grouped by severity (Critical/High/Medium/Low)
 ```
 
+### Phase 2B.7: Suggest MCP Servers
+
+After confirming agents, check if the project uses services that have official Anthropic MCP servers. Only suggest well-maintained official servers.
+
+**Detection Table:**
+
+| Signal | Detection Check | MCP Server |
+|---|---|---|
+| Sentry SDK | `@sentry/node` in package.json, `sentry-sdk` in pyproject.toml, `sentry/sentry-laravel` in composer.json | `@anthropic/claude-code-sentry` |
+| GitHub remote | `.git/config` contains `github.com` | `@anthropic/claude-code-github` |
+| Slack SDK | `@slack/web-api` or `@slack/bolt` in package.json | `@anthropic/claude-code-slack` |
+| Figma references | `figma.com/design/` or `figma.com/file/` in .md/source files, or `figma-api` in deps | `@anthropic/claude-code-figma` |
+
+**User interaction** — present detected MCP servers:
+
+```
+Based on your project dependencies, these MCP server integrations are available:
+
+  [1] Sentry     — Error tracking integration (sentry/sentry-laravel detected)
+  [2] GitHub     — Enhanced GitHub integration (github.com remote detected)
+
+Include MCP server configs? [All / Pick numbers / None]
+```
+
+For each accepted server, generate an `.mcp.json` entry in Phase 3. Add `.mcp.json` to the `.gitignore` suggestion list (it contains auth tokens).
+
+### Phase 2B.8: Suggest Skills
+
+Scan for patterns that indicate custom skills would be useful. Skills are reusable workflows invoked with `/skill-name`.
+
+**Detection Table:**
+
+| Signal | Detection Check | Suggested Skill | Template |
+|---|---|---|---|
+| Laravel API routes | `routes/api/` directory + API controllers exist | `new-api-endpoint` | `templates/skills/new-api-endpoint-laravel.md` |
+| React/Next/Expo components | `components/` or `src/components/` with 10+ files | `new-component` | `templates/skills/new-component-react.md` |
+| Django apps | `manage.py` + 2+ app directories with `models.py` | `new-django-app` | `templates/skills/new-django-app.md` |
+| Any test framework | Test framework detected in Phase 2B | `new-test-suite` | `templates/skills/new-test-suite-generic.md` |
+| FastAPI routers | `routers/` or `api/` directory with router files | `new-router` | `templates/skills/new-router-fastapi.md` |
+
+**User interaction** — same pattern as agents:
+
+```
+Based on your project structure, these custom skills would be useful:
+
+  [1] /new-api-endpoint    — Guided workflow for creating Laravel API endpoints
+      Signal: routes/api/ and app/Http/Controllers/Api/ detected
+
+  [2] /new-test-suite      — Scaffold test files matching your Pest conventions
+      Signal: Pest test framework detected
+
+Include suggested skills? [All / Pick numbers / None]
+```
+
+### Phase 2B.9: Suggest Plugins & Commands
+
+#### Plugin Suggestions
+
+Suggest official marketplace plugins based on the detected stack. These are installed via `/plugin install`, not generated as files.
+
+**LSP Plugins** (language intelligence — jump to definition, find references, diagnostics):
+
+| Detected Language | Plugin | Binary Required |
+|---|---|---|
+| TypeScript/JavaScript | `typescript-lsp@claude-plugins-official` | `typescript-language-server` |
+| Python | `pyright-lsp@claude-plugins-official` | `pyright-langserver` |
+| PHP | `php-lsp@claude-plugins-official` | `intelephense` |
+| Go | `gopls-lsp@claude-plugins-official` | `gopls` |
+| Rust | `rust-analyzer-lsp@claude-plugins-official` | `rust-analyzer` |
+
+**Integration Plugins** (external service connections):
+
+| Signal | Plugin |
+|---|---|
+| GitHub remote detected | `github@claude-plugins-official` |
+| Sentry SDK in dependencies | `sentry@claude-plugins-official` |
+| Slack SDK in dependencies | `slack@claude-plugins-official` |
+| Figma references in project | `figma@claude-plugins-official` |
+
+**User interaction:**
+
+```
+These official plugins would enhance your Claude Code experience:
+
+  Plugins to install:
+  [1] typescript-lsp      — Code intelligence (jump to def, find refs, diagnostics)
+  [2] github              — Enhanced GitHub integration
+
+  Install commands will be included in your setup report.
+
+Include plugin suggestions in report? [All / Pick numbers / None]
+```
+
+Note: Plugins are not generated as files — they are installed via `/plugin install name@claude-plugins-official`. The Phase 5 report includes the install commands.
+
+#### Command Suggestions
+
+Suggest slash commands (`.claude/commands/`) based on detected project capabilities:
+
+| Signal | Command | Template | Purpose |
+|---|---|---|---|
+| Any project | `review-changes` | `templates/commands/review-changes.md` | Review uncommitted changes using code-reviewer agent |
+| Test framework detected | `run-tests` | `templates/commands/run-tests.md` | Run test suite with detected test command |
+| Dev command detected | `dev` | `templates/commands/dev.md` | Start development server with detected command |
+
+Commands are always suggested (they're lightweight and universally useful). User can decline with the same All / Pick / None pattern.
+
 ---
 
 ### Phase 2C: Audit Mode
@@ -412,6 +574,45 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
 - Check if `.env` is in `.gitignore`
 - Check for any sensitive data patterns in `.claude/` files
 
+#### 7. MCP Audit
+- Check if `.mcp.json` exists in project root
+- If it doesn't exist, run MCP detection checks from Phase 2B.7
+- If it exists, verify it contains valid JSON and check for placeholder tokens (`YOUR_*_TOKEN`, `YOUR_*_KEY`) that haven't been replaced
+- Report: missing MCP configs for detected services, unreplaced placeholder tokens
+
+#### 8. Skills Audit
+- Check if `.claude/skills/` directory exists
+- If it exists, verify each subdirectory contains a `SKILL.md` file
+- Run skill detection checks from Phase 2B.8 against the project
+- For each triggered signal where no corresponding skill exists, report as suggestion
+- Report: skills with missing SKILL.md, suggested skills for detected signals
+
+#### 9. Commands Audit
+- Check if `.claude/commands/` directory exists
+- If it exists, list existing commands
+- Check for missing common commands: `review-changes` (always useful), `run-tests` (if test framework detected), `dev` (if dev command detected)
+- Report: missing commands for detected capabilities
+
+#### 10. Permissions Audit
+- Read `.claude/settings.json` for `permissions.allow` and `permissions.deny` arrays
+- Check for missing permission patterns based on detected tools:
+  - Test framework detected but no test command pre-approved
+  - Formatter detected but no format command pre-approved
+  - Package manager detected but no install command pre-approved
+  - Framework CLI detected but no CLI command pre-approved
+- Check for missing deny patterns:
+  - All projects: `Bash(rm -rf *)` should be denied
+  - Laravel: `Bash(php artisan migrate:fresh*)` and `Bash(php artisan migrate:reset*)` should be denied
+  - Django: `Bash(python manage.py flush*)` should be denied
+- Report: missing allow patterns, missing deny patterns
+
+#### 11. Plugin Audit
+- Run plugin detection from Phase 2B.9 against the project
+- Check if `extraKnownMarketplaces` or `enabledPlugins` exist in `.claude/settings.json`
+- For each detected language without a corresponding LSP plugin suggestion, note it
+- For each detected integration (GitHub, Sentry, etc.) without a plugin, note it
+- Report: suggested plugins that aren't installed
+
 **Output the audit report** in this format:
 
 ```
@@ -441,6 +642,27 @@ Settings
   [x] Missing: [missing setting] ([reason])
   [warning] settings.local.json not in .gitignore
 
+MCP Servers
+  [checkmark] .mcp.json configured with [N] servers
+  [x] Missing: Sentry MCP (sentry/sentry-laravel detected in composer.json)
+
+Skills
+  [checkmark] /new-api-endpoint skill exists
+  [suggested] /new-test-suite — Pest detected but no test scaffold skill
+
+Commands
+  [checkmark] /review-changes command exists
+  [x] Missing: /run-tests (Pest detected)
+
+Permissions
+  [checkmark] Test commands pre-approved
+  [x] Missing: Bash(./vendor/bin/duster *) not pre-approved
+  [x] Missing deny: Bash(php artisan migrate:fresh*) not blocked
+
+Plugins
+  [suggested] typescript-lsp — TypeScript detected, LSP plugin available
+  [suggested] github — GitHub remote detected
+
 Fix all gaps? [Yes / Pick individually / Skip]
 ```
 
@@ -465,7 +687,7 @@ Templates are located at `./templates/` relative to this SKILL.md file. Read the
 | Python/FastAPI | `python-fastapi.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-fastapi.md` | `code-reviewer.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) | `api-reviewer-generic.md`, `performance-reviewer.md` (conditional on signals) |
 | Go | `generic.json` | `universal/*`, `go/format-go.sh` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` | `performance-reviewer.md` (conditional on signals) |
 | Rust | `generic.json` | `universal/*`, `rust/format-rust.sh` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` | `performance-reviewer.md` (conditional on signals) |
-| Other | `generic.json` | `universal/*` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` | (conditional on signals) |
+| Other | `generic.json` + permissions | `universal/*`, `shell/lint-shellcheck.sh` (if shell project) | — | `generic.md` (with populated dev commands) | `code-reviewer.md`, `security-reviewer-generic.md` | (conditional on signals) |
 
 #### File Generation
 
@@ -475,6 +697,59 @@ Create these files in the project (skip any that already exist in merge mode):
 - Read the template for the detected stack
 - Adjust hook paths to match project structure
 - For Laravel monorepos with a `laravel/` subdirectory, adjust paths accordingly
+
+**Permission generation** — add `permissions.allow` and `permissions.deny` arrays based on detected tools:
+
+| Detected Tool | Allow Patterns |
+|---|---|
+| Test: Pest | `Bash(php artisan test*)`, `Bash(./vendor/bin/pest*)` |
+| Test: Jest | `Bash(npx jest*)`, `Bash(npm test*)` |
+| Test: Vitest | `Bash(npx vitest*)`, `Bash(npm test*)` |
+| Test: pytest | `Bash(pytest*)`, `Bash(python -m pytest*)` |
+| Fmt: Duster | `Bash(./vendor/bin/duster fix*)`, `Bash(./vendor/bin/duster lint*)` |
+| Fmt: Pint | `Bash(./vendor/bin/pint*)` |
+| Fmt: ESLint | `Bash(npx eslint*)` |
+| Fmt: Prettier | `Bash(npx prettier*)` |
+| Fmt: ruff | `Bash(ruff format*)`, `Bash(ruff check*)` |
+| Fmt: black | `Bash(black *)` |
+| Pkg: npm | `Bash(npm install*)`, `Bash(npm run *)` |
+| Pkg: composer | `Bash(composer install*)`, `Bash(composer require*)` |
+| Pkg: poetry | `Bash(poetry install*)`, `Bash(poetry run *)` |
+| Pkg: pip/uv | `Bash(pip install*)`, `Bash(uv pip install*)` |
+| Framework: Laravel | `Bash(php artisan route:list*)`, `Bash(php artisan make:*)`, `Bash(php artisan tinker*)` |
+| Framework: Django | `Bash(python manage.py shell*)`, `Bash(python manage.py check*)`, `Bash(python manage.py showmigrations*)` |
+| Dev commands (Gap 5) | For each detected dev command, add `Bash({command}*)` |
+
+Deny patterns:
+
+| Stack | Deny Pattern |
+|---|---|
+| Any | `Bash(rm -rf *)` |
+| Laravel | `Bash(php artisan migrate:fresh*)`, `Bash(php artisan migrate:reset*)` |
+| Django | `Bash(python manage.py flush*)` |
+
+Merge these into the settings template's `permissions` object. Example output structure:
+
+```json
+{
+  "permissions": {
+    "defaultMode": "plan",
+    "allow": [
+      "Bash(php artisan test*)",
+      "Bash(./vendor/bin/pest*)",
+      "Bash(./vendor/bin/duster fix*)",
+      "Bash(./vendor/bin/duster lint*)",
+      "Bash(composer install*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(php artisan migrate:fresh*)",
+      "Bash(php artisan migrate:reset*)"
+    ]
+  },
+  "hooks": { ... }
+}
+```
 
 **2. `.claude/hooks/` directory**
 - Copy relevant hook scripts from templates
@@ -511,6 +786,24 @@ Generate the following agents:
   - `{{FORMATTER}}`, `{{FORMATTER_COMMAND}}` — from detected formatter
   - `{{ARCHITECTURE_NOTES}}` — from reading source code structure
   - `{{CONVENTIONS}}` — from detected coding conventions
+- If dev commands were detected (Gap 5), use them for placeholder replacement:
+  - `{{DEV_COMMAND}}` — use the detected `dev` or `start` command instead of framework defaults
+  - `{{TEST_COMMAND}}` — use the detected `test` command
+  - `{{FORMAT_COMMAND}}` — use the detected `format` or `lint` command
+  - `{{DEV_INSTRUCTIONS}}` — generate a formatted command list from all detected commands:
+    ```
+    - **Dev server**: `npm run dev`
+    - **Tests**: `npm test`
+    - **Lint**: `npm run lint`
+    - **Format**: `npm run format`
+    - **Build**: `npm run build`
+    - **Typecheck**: `npm run typecheck`
+    ```
+  - For the generic template, detected commands replace the raw `{{DEV_INSTRUCTIONS}}` placeholder entirely, producing useful content instead of empty placeholders
+- If infrastructure was detected (Gap 2), include it in `{{STACK_DESCRIPTION}}`:
+  - Append containerization info: "Docker (docker-compose.yml with 3 services)"
+  - Append build tool info: "Makefile (12 targets)"
+  - Append monorepo info: "pnpm workspace (4 packages)"
 - Ensure the final CLAUDE.md is **under 300 lines**
 - If content exceeds 300 lines, move detailed conventions into path-scoped rules instead
 - **Always include the Workflow Automation section** — this is the most impactful section for daily productivity
@@ -518,6 +811,49 @@ Generate the following agents:
 **6. `.gitignore` updates**
 - If `.gitignore` exists, check if it contains `.claude/settings.local.json`
 - If not, suggest adding it (don't modify .gitignore without confirmation)
+
+**7. `.mcp.json`** (if MCP servers were accepted in Phase 2B.7)
+- Read the MCP config templates from `templates/mcp/` for each accepted server
+- Combine them into a single `.mcp.json` file at the project root
+- Each server entry uses placeholder tokens (e.g., `YOUR_SENTRY_AUTH_TOKEN`) that the user must fill in
+- Structure:
+
+```json
+{
+  "mcpServers": {
+    "sentry": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/claude-code-sentry"],
+      "env": {
+        "SENTRY_AUTH_TOKEN": "YOUR_SENTRY_AUTH_TOKEN",
+        "SENTRY_ORG": "YOUR_SENTRY_ORG",
+        "SENTRY_PROJECT": "YOUR_SENTRY_PROJECT"
+      }
+    }
+  }
+}
+```
+
+- Add `.mcp.json` to the `.gitignore` suggestion list (alongside `settings.local.json`)
+
+**8. `.claude/skills/` directory** (if skills were accepted in Phase 2B.8)
+- For each accepted skill, create `.claude/skills/{skill-name}/SKILL.md`
+- Read the skill template from `templates/skills/` for the detected framework
+- Replace placeholders with detected values:
+  - `{{TEST_FRAMEWORK}}` — detected test framework name
+  - `{{TEST_COMMAND}}` — detected test command
+  - `{{FRAMEWORK}}` — detected framework name
+  - `{{LANGUAGE}}` — detected language
+- Each skill SKILL.md should include frontmatter with `description` and the skill workflow
+
+**9. `.claude/commands/` directory** (if commands were accepted in Phase 2B.9)
+- For each accepted command, create `.claude/commands/{command-name}.md`
+- Read the command template from `templates/commands/`
+- Replace placeholders with detected values:
+  - `{{TEST_COMMAND}}` — from dev command detection
+  - `{{DEV_COMMAND}}` — from dev command detection
+  - `{{REVIEW_SCOPE}}` — default to "uncommitted changes"
+- Commands are simple markdown files with a description and prompt text
 
 #### Merge Mode Behavior (Audit fixes)
 
@@ -542,6 +878,10 @@ After generating all files, validate:
 4. **CLAUDE.md line count**: Verify under 300 lines
 5. **No duplicate hooks**: Check settings.json doesn't have duplicate hook entries
 6. **Hook scripts exist**: Every script referenced in settings.json exists on disk
+7. **MCP config is valid**: If `.mcp.json` was generated, verify it parses as valid JSON and contains placeholder tokens
+8. **Skills have SKILL.md**: For each generated skill directory, verify it contains a non-empty `SKILL.md`
+9. **Commands are valid**: For each generated command, verify the `.md` file exists and is non-empty
+10. **Permissions are consistent**: Verify `permissions.allow` patterns don't conflict with `permissions.deny` patterns
 
 Fix any validation errors automatically.
 
@@ -570,13 +910,30 @@ Project config created:
     test-generator.md         — Pest test generation agent
     migration-reviewer.md     — migration safety review agent (suggested)
     api-reviewer.md           — API consistency review agent (suggested)
+  .mcp.json                   — MCP server configs (Sentry, GitHub)
+    ⚠ Replace placeholder tokens before use — see setup instructions below
+  .claude/skills/
+    new-api-endpoint/SKILL.md — guided API endpoint creation (/new-api-endpoint)
+    new-test-suite/SKILL.md   — test scaffold workflow (/new-test-suite)
+  .claude/commands/
+    review-changes.md         — review uncommitted changes (/review-changes)
+    run-tests.md              — run test suite (/run-tests)
+    dev.md                    — start dev server (/dev)
   CLAUDE.md                   — project overview + conventions (189 lines)
 
 Next steps:
   1. Review the generated CLAUDE.md and adjust any placeholders
   2. Add project-specific conventions to CLAUDE.md
-  3. Consider adding custom skills for repeated workflows
+  3. Try your new commands: /review-changes, /run-tests, /dev
   4. Run: git add .claude/ CLAUDE.md && git commit -m "Add Claude Code configuration"
+  5. Configure MCP servers:
+     - Open .mcp.json and replace placeholder tokens
+     - Sentry: Get auth token from https://sentry.io/settings/auth-tokens/
+     - GitHub: Uses gh CLI auth (run `gh auth login` if needed)
+  6. Install suggested plugins:
+     /plugin install typescript-lsp@claude-plugins-official
+     /plugin install github@claude-plugins-official
+  7. Try your new skills: /new-api-endpoint BookingController
 ```
 
 If in audit mode, also show what was fixed vs. what was skipped.
