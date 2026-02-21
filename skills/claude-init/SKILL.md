@@ -184,9 +184,18 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
 
 #### 4. Agents Audit
 - Read all files in `.claude/agents/` (if directory exists)
-- Check for **missing agents** based on stack:
-  - All projects: security-reviewer agent
-  - JS/TS projects: api-reviewer agent (if API layer exists)
+- **Existence checks** — verify these agents exist:
+  - All projects: `code-reviewer.md`
+  - All projects: `security-reviewer.md`
+  - If test framework detected (Pest, Jest, Vitest, pytest): `test-generator.md`
+- **Quality checks** — for each existing agent, verify:
+  - Uses `tools:` field in frontmatter (not the deprecated `allowed-tools:`)
+  - Read-only agents (code-reviewer, security-reviewer) have `permissionMode: plan`
+  - Write-capable agents (test-generator) have `permissionMode: acceptEdits`
+  - `maxTurns` is set (prevents runaway execution)
+  - `description` includes invocation guidance (when/how to use the agent)
+  - Tool list is appropriate: reviewers should have `Read, Grep, Glob` only (NOT Write/Edit/Bash); test-generator should have `Read, Grep, Glob, Write, Edit, Bash`
+- Report quality issues alongside missing agents
 
 #### 5. Settings Audit
 - Read `.claude/settings.json`
@@ -246,16 +255,16 @@ Based on the detected/selected framework, generate the Claude Code configuration
 
 Templates are located at `./templates/` relative to this SKILL.md file. Read the appropriate template files for the detected stack:
 
-| Stack | Settings | Hooks | Rules | CLAUDE.md | Agent |
+| Stack | Settings | Hooks | Rules | CLAUDE.md | Agents |
 |---|---|---|---|---|---|
-| PHP/Laravel | `php-laravel.json` | `universal/*`, `php/format-php.sh` | `php/*` | `php-laravel.md` | `security-reviewer-php.md` |
-| JS/Next.js | `js-nextjs.json` | `universal/*`, `javascript/*` | `javascript/*` | `js-nextjs.md` | `security-reviewer-js.md` |
-| JS/Expo | `js-expo.json` | `universal/*`, `javascript/*` | `javascript/*` | `js-expo.md` | `security-reviewer-js.md` |
-| Python/Django | `python-django.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-django.md` | `security-reviewer-python.md` |
-| Python/FastAPI | `python-fastapi.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-fastapi.md` | `security-reviewer-python.md` |
-| Go | `generic.json` | `universal/*`, `go/format-go.sh` | — | `generic.md` | `security-reviewer-generic.md` |
-| Rust | `generic.json` | `universal/*`, `rust/format-rust.sh` | — | `generic.md` | `security-reviewer-generic.md` |
-| Other | `generic.json` | `universal/*` | — | `generic.md` | `security-reviewer-generic.md` |
+| PHP/Laravel | `php-laravel.json` | `universal/*`, `php/format-php.sh` | `php/*` | `php-laravel.md` | `code-reviewer.md`, `security-reviewer-php.md`, `test-generator-pest.md` (if Pest detected) |
+| JS/Next.js | `js-nextjs.json` | `universal/*`, `javascript/*` | `javascript/*` | `js-nextjs.md` | `code-reviewer.md`, `security-reviewer-js.md`, `test-generator-jest.md` or `test-generator-vitest.md` (if detected) |
+| JS/Expo | `js-expo.json` | `universal/*`, `javascript/*` | `javascript/*` | `js-expo.md` | `code-reviewer.md`, `security-reviewer-js.md`, `test-generator-jest.md` (if Jest detected) |
+| Python/Django | `python-django.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-django.md` | `code-reviewer.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) |
+| Python/FastAPI | `python-fastapi.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-fastapi.md` | `code-reviewer.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) |
+| Go | `generic.json` | `universal/*`, `go/format-go.sh` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` |
+| Rust | `generic.json` | `universal/*`, `rust/format-rust.sh` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` |
+| Other | `generic.json` | `universal/*` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` |
 
 #### File Generation
 
@@ -276,8 +285,17 @@ Create these files in the project (skip any that already exist in merge mode):
 - **Validate glob patterns**: For each rule's `paths:` frontmatter, verify the glob patterns match actual files in the project. If a template's default path doesn't match (e.g., template has `tests/**` but project uses `test/**`), adjust the glob pattern to match the actual directory structure.
 
 **4. `.claude/agents/` directory**
-- Copy the security-reviewer agent for the detected stack
-- Adjust tool permissions if needed
+
+Generate the following agents:
+
+- **Always**: Copy `code-reviewer.md` (universal, works for all stacks)
+- **Always**: Copy the security-reviewer agent for the detected stack (`security-reviewer-php.md`, `security-reviewer-js.md`, `security-reviewer-python.md`, or `security-reviewer-generic.md`)
+- **Conditionally**: If a test framework was detected in Phase 2B, copy the matching test-generator agent:
+  - Pest detected → `test-generator-pest.md`
+  - Jest detected → `test-generator-jest.md`
+  - Vitest detected → `test-generator-vitest.md`
+  - pytest detected → `test-generator-pytest.md`
+  - No test framework detected → skip test-generator
 
 **5. `CLAUDE.md`**
 - Read the template for the detected stack
@@ -343,8 +361,10 @@ Project config created:
     migration-safety.md       — migration safety rules (database/migrations/**)
     api-conventions.md        — API conventions (app/Http/Controllers/Api/**)
   .claude/agents/
+    code-reviewer.md          — code quality review agent
     security-reviewer.md      — PHP security review agent
-  CLAUDE.md                   — project overview + conventions (187 lines)
+    test-generator.md         — Pest test generation agent
+  CLAUDE.md                   — project overview + conventions (189 lines)
 
 Next steps:
   1. Review the generated CLAUDE.md and adjust any placeholders
