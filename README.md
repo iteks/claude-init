@@ -111,7 +111,9 @@ CLAUDE.md
   [missing] Workflow Automation section
 
 Agents
+  [missing] code-reviewer agent
   [missing] security-reviewer agent
+  [missing] test-generator agent (Pest detected)
 
 Settings
   [ok] plan mode enabled
@@ -138,7 +140,9 @@ Scans your existing setup, reports gaps, and offers to fix them without overwrit
 │   ├── migration-safety.md    # Migration safety scoped to database/migrations/**
 │   └── api-conventions.md     # API conventions scoped to routes/api/**, Controllers/Api/**
 └── agents/
-    └── security-reviewer.md   # Security review agent for your stack
+    ├── code-reviewer.md       # Code quality review agent (all projects)
+    ├── security-reviewer.md   # Security review agent for your stack
+    └── test-generator.md      # Test generation agent (when test framework detected)
 
 CLAUDE.md                      # Project overview, conventions, workflow automation (<300 lines)
 ```
@@ -152,23 +156,25 @@ CLAUDE.md                      # Project overview, conventions, workflow automat
 | `guard-git-push.sh` | Prompts before push | Catches premature pushes |
 | `testing-*.md` | Path-scoped test conventions | Claude follows your test patterns exactly |
 | `migration-safety.md` | Blocks dangerous migrations | Prevents `migrate:fresh` on production data |
+| `code-reviewer.md` | On-demand code quality review | Catches bugs, logic errors, and convention violations |
 | `security-reviewer.md` | On-demand security audit | Catches OWASP Top 10 in code reviews |
+| `test-generator.md` | On-demand test generation | Creates tests matching your framework and conventions |
 | `CLAUDE.md` | Project context + workflow automation | Claude plans, reviews, and manages context proactively |
 
 ---
 
 ## Supported Stacks
 
-| Stack | Hooks | Rules | Agent | Settings | CLAUDE.md |
+| Stack | Hooks | Rules | Agents | Settings | CLAUDE.md |
 |---|---|---|---|---|---|
-| PHP / Laravel | format-php, guard-env, guard-push, migration-guard | testing-pest, migration-safety, api-conventions | security-reviewer-php | laravel-boost, php-lsp, pest plugins | Full template |
-| JS / Next.js | lint-changed, typecheck-changed, guard-config, guard-env, guard-push | testing-jest/vitest, component-conventions | security-reviewer-js | typescript-lsp plugins | Full template |
-| JS / Expo | lint-changed, typecheck-changed, guard-config, guard-push | testing-jest, component-conventions | security-reviewer-js | typescript-lsp plugins | Full template |
-| Python / Django | format-python, guard-env, guard-push | testing-pytest | security-reviewer-python | python plugins | Full template |
-| Python / FastAPI | format-python, guard-env, guard-push | testing-pytest | security-reviewer-python | python plugins | Full template |
-| Go | format-go, guard-env, guard-push | — | security-reviewer-generic | — | Generic template |
-| Rust | format-rust, guard-env, guard-push | — | security-reviewer-generic | — | Generic template |
-| Other | guard-env, guard-push | — | security-reviewer-generic | — | Generic template |
+| PHP / Laravel | format-php, guard-env, guard-push, migration-guard | testing-pest, migration-safety, api-conventions | code-reviewer, security-reviewer-php, test-generator-pest | laravel-boost, php-lsp, pest plugins | Full template |
+| JS / Next.js | lint-changed, typecheck-changed, guard-config, guard-env, guard-push | testing-jest/vitest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest/vitest | typescript-lsp plugins | Full template |
+| JS / Expo | lint-changed, typecheck-changed, guard-config, guard-push | testing-jest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest | typescript-lsp plugins | Full template |
+| Python / Django | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest | python plugins | Full template |
+| Python / FastAPI | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest | python plugins | Full template |
+| Go | format-go, guard-env, guard-push | — | code-reviewer, security-reviewer-generic | — | Generic template |
+| Rust | format-rust, guard-env, guard-push | — | code-reviewer, security-reviewer-generic | — | Generic template |
+| Other | guard-env, guard-push | — | code-reviewer, security-reviewer-generic | — | Generic template |
 
 **Adding a new stack?** See [Contributing](#contributing).
 
@@ -231,7 +237,8 @@ The audit is the key differentiator for teams already using Claude Code. Here's 
 | **Rules** | Dead rules — globs that match nothing | Rule for `src/api/**` but API is at `app/Http/` |
 | **CLAUDE.md** | Over 300 lines | Claude starts ignoring rules unpredictably |
 | **CLAUDE.md** | Missing Workflow Automation section | No plan mode triggers or review offers |
-| **Agents** | No security reviewer | Missing for the detected stack |
+| **Agents** | Missing code-reviewer, security-reviewer, or test-generator | No review or test generation agents for the stack |
+| **Agents** | Incorrect frontmatter (`allowed-tools` instead of `tools`) | Agent may not function correctly |
 | **Settings** | Missing hooks or permissions | Detected formatter but no auto-format hook |
 | **Hygiene** | `settings.local.json` not in `.gitignore` | Machine-specific config being committed |
 
@@ -315,7 +322,7 @@ Yes. Clone wherever you want. The symlink points to wherever you cloned it.
 2. Create rule templates in `skills/claude-init/templates/rules/[language]/`
 3. Create a settings template in `skills/claude-init/templates/settings/[framework].json`
 4. Create a CLAUDE.md template in `skills/claude-init/templates/claude-md/[framework].md`
-5. Create a security reviewer agent in `skills/claude-init/templates/agents/security-reviewer-[language].md`
+5. Create agent templates in `skills/claude-init/templates/agents/` (security-reviewer and test-generator variants for the language)
 6. Add detection logic to `skills/claude-init/SKILL.md` (Phase 2B detection tables)
 7. Add template mapping to Phase 3 template selection table
 8. Submit a PR
