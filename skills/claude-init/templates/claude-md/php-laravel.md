@@ -60,6 +60,25 @@ After modifying 2+ files:
 - For security-sensitive changes (auth, input handling, database queries), offer the security-reviewer agent
 - For new code lacking test coverage, offer the test-generator agent
 
+### Agent Teams
+
+For complex tasks that benefit from parallel work, spawn an agent team:
+
+**When to use teams:**
+- Full-stack features touching controllers, resources, migrations, and tests simultaneously
+- API + migration review (one reviewer per concern)
+- Backend work paired with a frontend consumer (e.g., API endpoint + TypeScript types in a companion app)
+
+**When NOT to use teams:**
+- Single-file changes, quick fixes, sequential work
+- Changes where each step depends on the previous
+
+**Example pattern — new API feature:**
+- **Backend** teammate (Sonnet): controller, resource, form request, route in `app/Http/` and `routes/`
+- **Tests** teammate (Sonnet): Pest tests in `tests/Feature/` — blocked by Backend
+- Assign exclusive file ownership per teammate to prevent conflicts
+- Mix models: Opus for complex logic, Sonnet for straightforward, Haiku for simple tasks
+
 ### Context Management
 
 - After completing a unit of work, suggest `/compact`

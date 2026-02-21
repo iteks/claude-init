@@ -59,6 +59,25 @@ After modifying 2+ files:
 - For security-sensitive changes (auth, input handling, database queries), offer the security-reviewer agent
 - For new code lacking test coverage, offer the test-generator agent
 
+### Agent Teams
+
+For complex tasks that benefit from parallel work, spawn an agent team:
+
+**When to use teams:**
+- Features spanning multiple Django apps (one teammate per app)
+- Model + views + templates + tests for a single app (split by layer)
+- Multi-concern reviews (security + query performance + test coverage)
+
+**When NOT to use teams:**
+- Single-file changes, quick fixes, sequential work
+- Changes where each step depends on the previous
+
+**Example pattern — new Django app feature:**
+- **Models** teammate (Sonnet): models, migrations, admin in the target app
+- **Views** teammate (Sonnet): views, URLs, templates, serializers — blocked by Models
+- **Tests** teammate (Sonnet): pytest tests — blocked by Views
+- Assign exclusive file ownership per teammate to prevent conflicts
+
 ### Context Management
 
 - After completing a unit of work, suggest `/compact`

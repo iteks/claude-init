@@ -39,6 +39,24 @@ After modifying 2+ files:
 - Offer a code review via the code-reviewer agent
 - For security-sensitive changes, offer the security-reviewer agent
 
+### Agent Teams
+
+For complex tasks that benefit from parallel work, spawn an agent team:
+
+**When to use teams:**
+- Features spanning 2+ independent modules
+- Parallel research + implementation (one teammate researches, another implements)
+- Multi-concern reviews (security + performance + test coverage)
+
+**When NOT to use teams:**
+- Single-file changes, quick fixes, sequential work
+- Changes where each step depends on the previous
+
+**Tips:**
+- Assign exclusive file ownership per teammate to prevent conflicts
+- Use task dependencies (`blockedBy`) for sequential steps
+- Mix models: Opus for complex logic, Sonnet for straightforward, Haiku for simple tasks
+
 ### Context Management
 
 - After completing a unit of work, suggest `/compact`

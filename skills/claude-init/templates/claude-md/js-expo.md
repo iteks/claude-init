@@ -60,6 +60,25 @@ After modifying 2+ files:
 - For security-sensitive changes (auth, data handling, API calls), offer the security-reviewer agent
 - For new code lacking test coverage, offer the test-generator agent
 
+### Agent Teams
+
+For complex tasks that benefit from parallel work, spawn an agent team:
+
+**When to use teams:**
+- New screens with API integration (screen + API client + types)
+- Parallel component work (2+ independent components or screens)
+- Cross-platform testing review (iOS-specific + Android-specific concerns)
+
+**When NOT to use teams:**
+- Single-file changes, quick fixes, sequential work
+- Changes where each step depends on the previous
+
+**Example pattern — new feature screen:**
+- **Screen** teammate (Sonnet): screen and navigation in `app/`, components in `components/`
+- **API** teammate (Sonnet): API functions and TypeScript types in `api/`
+- Assign exclusive file ownership per teammate to prevent conflicts
+- Use task dependencies (`blockedBy`) when the screen depends on API types
+
 ### Context Management
 
 - After completing a unit of work, suggest `/compact`

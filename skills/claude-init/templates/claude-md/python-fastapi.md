@@ -58,6 +58,25 @@ After modifying 2+ files:
 - For security-sensitive changes (auth, input handling, API endpoints), offer the security-reviewer agent
 - For new code lacking test coverage, offer the test-generator agent
 
+### Agent Teams
+
+For complex tasks that benefit from parallel work, spawn an agent team:
+
+**When to use teams:**
+- New endpoint with full stack (router + service + models + tests)
+- Parallel router work (2+ independent routers for the same feature)
+- Multi-concern reviews (security + performance + test coverage)
+
+**When NOT to use teams:**
+- Single-file changes, quick fixes, sequential work
+- Changes where each step depends on the previous
+
+**Example pattern — new API endpoint:**
+- **API** teammate (Sonnet): router, Pydantic models, and dependencies in `routers/` and `models/`
+- **Service** teammate (Sonnet): business logic in `services/` — blocked by API (needs model shapes)
+- **Tests** teammate (Sonnet): pytest tests — blocked by Service
+- Assign exclusive file ownership per teammate to prevent conflicts
+
 ### Context Management
 
 - After completing a unit of work, suggest `/compact`
