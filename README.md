@@ -209,41 +209,55 @@ Agents are suggested — not forced. You choose which to include during setup.
 /claude-init
       |
       v
-+-- Detect State ----------------+
-| Has .claude/?  Has source?     |
++-- Phase 1: Detect State ------+
+| Has .claude/?  Has source?     |  (main session — lightweight)
 | -> New / Existing / Audit      |
 +---------------+----------------+
                 |
          +------+------+
          v             v
-   +- Detect -+  +- Prompt -+
-   | language  |  | type?    |
-   | framework |  | frame?   |
-   | test      |  | desc?    |
-   | formatter |  | testing? |
-   | pkg mgr   |  +----+-----+
-   +-----+-----+       |
-         +------+-------+
-                v
-       +- Generate ------------+
-       | Read templates         |
-       | Replace placeholders   |
-       | Adjust paths           |
-       | Write files            |
-       +---------+--------------+
-                 v
-       +- Validate ------------+
-       | chmod +x hooks         |
-       | Valid JSON?            |
-       | Rules match files?     |
-       | CLAUDE.md < 300 ln     |
-       +---------+--------------+
-                 v
-       +- Report --------------+
-       | List created files     |
-       | Suggest next steps     |
-       +------------------------+
+  +-- Phase 2A --+  +-- Phase 2B --------+
+  | Prompt user  |  | Detect stack       |
+  | (main        |  | (subagent: haiku)  |
+  |  session)    |  | -> structured      |
+  +---------+----+  |    summary         |
+            |       +--------+-----------+
+            |                |
+            |    +-- Phase 2B.5 ---------+
+            |    | Signal scan           |
+            |    | (same subagent)       |
+            |    +--------+--------------+
+            +------+------+
+                   v
+          User confirms stack
+          User selects agents
+            (main session)
+                   |
+                   v
+          +-- Phase 3+4 -----------+
+          | Generate + Validate    |
+          | (subagent: sonnet)     |
+          | -> file creation       |
+          |    summary             |
+          +---------+--------------+
+                    v
+          +-- Phase 5 -------------+
+          | Report results         |  (main session)
+          | Suggest next steps     |
+          +------------------------+
 ```
+
+---
+
+## Context Preservation
+
+claude-init delegates heavy file-scanning and template-generation phases to subagents. This keeps the main session's context window clean:
+
+- **Detection** (Phase 2B + 2B.5) runs in a haiku subagent — all lock file reading, convention extraction, and signal scanning happens outside the main context
+- **Generation** (Phase 3 + 4) runs in a sonnet subagent — template reading, placeholder replacement, file writing, and validation happen outside the main context
+- **The main session** handles only Phase 1 (three file checks), user interaction (prompts, confirmations), and Phase 5 (displaying the summary)
+
+After `/claude-init` completes, the session is ready for productive work without needing `/compact` or `/clear`.
 
 ---
 

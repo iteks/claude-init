@@ -8,6 +8,61 @@ Analyze any project and generate optimal Claude Code integration — hooks, rule
 
 You are the `claude-init` skill. When invoked, follow this complete workflow.
 
+### Execution Strategy — Context Preservation
+
+claude-init's phases involve heavy file reading (scanning lock files, reading templates, extracting conventions). To keep the main session clean for user interaction and reporting, delegate the heavy phases to subagents using the `Task` tool.
+
+**Subagent delegation points:**
+
+| Subagent | Phases | Model | Input | Output |
+|---|---|---|---|---|
+| Detection | 2B + 2B.5 | `haiku` | Project root path | Structured stack summary + signal scan results |
+| Generation | 3 + 4 | `sonnet` | Stack summary + user selections + project root path | List of files created/modified |
+
+**What stays in the main session** (requires user interaction or is lightweight):
+- Phase 1 — three file-existence checks
+- Phase 2A — `AskUserQuestion` prompts (can't delegate)
+- User confirmations — stack approval, agent selection
+- Phase 5 — display the summary returned by the generation subagent
+
+**For Audit Mode (2C):** Delegate the entire audit scan + fix cycle as a single subagent. It reads existing config, produces the audit report text, and generates fixes if the user approves. The main session only handles displaying the report and collecting the user's fix/skip decision.
+
+**For New Project Mode (2A):** Skip the detection subagent (the user provides the answers). Only delegate generation (Phase 3 + 4).
+
+**How to delegate:**
+
+Use `Task` with `subagent_type: "general-purpose"` and `mode: "bypassPermissions"`.
+
+Detection subagent prompt:
+```
+Analyze the project at {path}. Follow the detection sequence:
+1. Language detection (composer.json, package.json, pyproject.toml, go.mod, Cargo.toml)
+2. Framework detection (artisan+laravel, next.config, app.config+expo, manage.py+django, fastapi)
+3. Test framework detection (pestphp, jest, vitest, pytest)
+4. Formatter/linter detection (duster, pint, eslint, prettier, ruff, black, gofmt, rustfmt)
+5. Package manager detection (bun, pnpm, yarn, npm, pipenv, poetry, uv)
+6. Convention extraction (read 2-3 source files for indent style, naming, imports)
+7. Signal scan (migrations, API routes, ORM models, components, CI/CD, docs, dependencies)
+
+Return a structured summary:
+  Stack: Language, Framework, Test Framework, Formatter, Package Manager
+  Conventions: Indentation, Naming, Import Style
+  Signals: For each of the 7 signals, state detected/not-detected with file counts
+```
+
+Generation subagent prompt:
+```
+Generate Claude Code configuration for a {framework} project at {path}.
+Stack: {paste detection summary}
+Accepted agents: {list from user selection}
+
+Read templates from {skill_path}/templates/ and follow the Phase 3 (Generate)
+and Phase 4 (Validate) instructions in {skill_path}/SKILL.md.
+Return a summary of every file created or modified with a one-line description each.
+```
+
+---
+
 ### Pre-check: Global Settings
 
 Before project analysis, quickly check if `~/.claude/settings.json` has permission pre-approvals (look for `Bash(git status*)` in `permissions.allow`). If not found, display:
