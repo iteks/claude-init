@@ -509,6 +509,18 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
 
 **Scan the following categories:**
 
+#### 0. Version Check
+- Read `.claude/.claude-init-version` if it exists
+- Get current claude-init version: `git -C {skill_path}/../.. rev-parse --short HEAD` (resolve `{skill_path}` from the skill's location — the repo root is two directories up from the skill)
+- If both versions are available and differ:
+  - Show: `claude-init updated: {old_version} → {new_version}`
+  - Compute new capabilities: compare the project's `capabilities` array against the full set (`hooks`, `rules`, `agents`, `mcp`, `skills`, `commands`, `permissions`, `plugins`)
+  - Missing entries = new features added since last generation
+  - If new capabilities exist, list them: `New capabilities available: plugins, commands`
+  - Display this at the top of the audit report, before category scans
+- If the version file doesn't exist, note: `No version stamp found — this project was configured before version tracking was added`
+- If versions match, show: `claude-init version: {version} (up to date)`
+
 #### 1. Hooks Audit
 - Read `.claude/settings.json` (or `.claude/settings.local.json`) for existing hooks
 - Check for **missing hooks** based on detected stack:
@@ -855,6 +867,21 @@ Generate the following agents:
   - `{{REVIEW_SCOPE}}` — default to "uncommitted changes"
 - Commands are simple markdown files with a description and prompt text
 
+**10. `.claude/.claude-init-version`**
+- Get claude-init version: `git -C {skill_path}/../.. rev-parse --short HEAD` (resolve `{skill_path}` from the skill's location — the repo root is two directories up from the skill)
+- Build the `capabilities` array from what was actually generated in this run (e.g., if hooks were created, include `"hooks"`; if MCP was declined, omit `"mcp"`)
+- Known capability keys: `hooks`, `rules`, `agents`, `mcp`, `skills`, `commands`, `permissions`, `plugins`
+- Write JSON file:
+  ```json
+  {
+    "version": "{git_short_hash}",
+    "generated_at": "{ISO_8601_timestamp}",
+    "capabilities": ["hooks", "rules", "agents", "skills", "commands", "permissions"]
+  }
+  ```
+- In merge mode: **ALWAYS overwrite** this file (unlike other config files) — it must reflect the current tool version
+- Add `.claude-init-version` to the `.gitignore` suggestion list (version stamp is machine-specific)
+
 #### Merge Mode Behavior (Audit fixes)
 
 When fixing audit gaps:
@@ -920,6 +947,7 @@ Project config created:
     run-tests.md              — run test suite (/run-tests)
     dev.md                    — start dev server (/dev)
   CLAUDE.md                   — project overview + conventions (189 lines)
+  .claude/.claude-init-version — tracks tool version for upgrade detection
 
 Next steps:
   1. Review the generated CLAUDE.md and adjust any placeholders

@@ -39,6 +39,20 @@
       "Bash(wget * | sh)"
     ]
   },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude-init/global/check-update.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },

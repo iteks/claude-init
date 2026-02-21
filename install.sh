@@ -109,6 +109,20 @@ echo "$MERGED" > "$SETTINGS_FILE"
 echo ""
 echo "  Permissions merged into $SETTINGS_FILE"
 
+# ── Step 3: Make global hooks executable ──
+
+echo ""
+echo "Step 3: Setting up global hooks"
+echo ""
+
+if [[ -f "$SCRIPT_DIR/global/check-update.sh" ]]; then
+  chmod +x "$SCRIPT_DIR/global/check-update.sh"
+  echo "  Made check-update.sh executable"
+  echo "  SessionStart hook will notify when projects need re-configuring"
+else
+  echo "  Warning: check-update.sh not found at $SCRIPT_DIR/global/check-update.sh"
+fi
+
 # ── Summary ──
 
 echo ""
@@ -125,6 +139,9 @@ echo ""
 echo "  Permission pre-approvals (global)"
 echo "    Auto-approved: git reads, ls, gh CLI reads, --version, jq"
 echo "    Auto-denied: rm -rf /, sudo rm, chmod 777, curl|bash"
+echo ""
+echo "  Version check hook (global)"
+echo "    Notifies at session start when projects need re-configuring"
 echo ""
 echo "  Agent Teams (global)"
 echo "    Multi-agent orchestration via tmux enabled"

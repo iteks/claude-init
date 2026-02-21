@@ -48,6 +48,30 @@ else
   echo "  You can manually edit $SETTINGS_FILE to remove unwanted permissions."
 fi
 
+# ── Step 3: Remove SessionStart hook from global settings ──
+
+echo "Step 3: Removing SessionStart hook"
+
+if [[ -f "$SETTINGS_FILE" ]] && command -v jq &>/dev/null; then
+  if jq -e '.hooks.SessionStart' "$SETTINGS_FILE" &>/dev/null; then
+    CLEANED=$(jq '
+      .hooks.SessionStart = [
+        .hooks.SessionStart[] |
+        .hooks = [.hooks[] | select(.command | test("check-update\\.sh") | not)] |
+        select(.hooks | length > 0)
+      ] |
+      if .hooks.SessionStart | length == 0 then del(.hooks.SessionStart) else . end |
+      if .hooks | length == 0 then del(.hooks) else . end
+    ' "$SETTINGS_FILE")
+    echo "$CLEANED" > "$SETTINGS_FILE"
+    echo "  Removed check-update.sh hook from settings"
+  else
+    echo "  No SessionStart hooks found"
+  fi
+else
+  echo "  Skipped — jq not available or settings file not found"
+fi
+
 echo ""
 echo "Uninstall complete."
 echo "Restart Claude Code for changes to take effect."

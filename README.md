@@ -493,6 +493,34 @@ Yes. Clone wherever you want. The symlink points to wherever you cloned it.
 
 ---
 
+## Keeping Projects Updated
+
+When you update claude-init (`git pull`), the SKILL.md and templates update automatically (they're symlinked). But projects that have already been configured keep their generated config files unchanged — they don't know about new features.
+
+claude-init handles this with version tracking:
+
+1. **Automatic notification** — A SessionStart hook checks each project's version stamp against the current tool version. If they differ, you'll see:
+   ```
+   claude-init has updates since this project was configured (b73fae1 → a1c9d2e). Run /claude-init to upgrade.
+   ```
+
+2. **Smart upgrade** — Running `/claude-init` on an already-configured project enters Audit Mode, which:
+   - Shows what version the project was configured with
+   - Lists new capabilities available since the last run
+   - Scans for gaps and offers to fill them
+   - Never overwrites existing config — only adds what's missing
+
+3. **Version file** — Each configured project gets `.claude/.claude-init-version` tracking the tool version and which capabilities were generated. This file is machine-specific and should be in `.gitignore`.
+
+**Upgrade workflow:**
+```bash
+cd ~/.claude-init && git pull    # Update the tool
+# Next time you open a configured project, you'll be notified
+# Run /claude-init to upgrade that project's config
+```
+
+---
+
 ## Contributing
 
 ### Adding a New Stack
