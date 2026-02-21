@@ -56,7 +56,9 @@ Use `EnterPlanMode` for any task that:
 After modifying 2+ files:
 - Offer to run `php artisan test --compact --filter=RelevantTest`
 - Offer to run `./vendor/bin/{{FORMATTER_COMMAND}} lint`
-- Offer a code review via the security-reviewer agent
+- Offer a code review via the code-reviewer agent
+- For security-sensitive changes (auth, input handling, database queries), offer the security-reviewer agent
+- For new code lacking test coverage, offer the test-generator agent
 
 ### Context Management
 

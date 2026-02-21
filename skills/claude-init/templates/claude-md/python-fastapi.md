@@ -54,7 +54,9 @@ Use `EnterPlanMode` for any task that:
 After modifying 2+ files:
 - Offer to run `pytest --tb=short`
 - Offer to run `{{FORMAT_COMMAND}}`
-- Offer a code review via the security-reviewer agent
+- Offer a code review via the code-reviewer agent
+- For security-sensitive changes (auth, input handling, API endpoints), offer the security-reviewer agent
+- For new code lacking test coverage, offer the test-generator agent
 
 ### Context Management
 

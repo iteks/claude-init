@@ -36,7 +36,8 @@ Use `EnterPlanMode` for any task that:
 After modifying 2+ files:
 - Offer to run the project's linter/formatter
 - Offer to run relevant tests
-- Offer a code review
+- Offer a code review via the code-reviewer agent
+- For security-sensitive changes, offer the security-reviewer agent
 
 ### Context Management
 

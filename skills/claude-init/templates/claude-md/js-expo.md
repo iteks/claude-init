@@ -56,7 +56,9 @@ Use `EnterPlanMode` for any task that:
 After modifying 2+ files:
 - Offer to run `{{LINT_COMMAND}}`
 - Offer to run TypeScript check: `npx tsc --noEmit`
-- Offer a code review
+- Offer a code review via the code-reviewer agent
+- For security-sensitive changes (auth, data handling, API calls), offer the security-reviewer agent
+- For new code lacking test coverage, offer the test-generator agent
 
 ### Context Management
 
