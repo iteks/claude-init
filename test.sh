@@ -90,7 +90,7 @@ if command -v shellcheck > /dev/null 2>&1; then
   done < <(find "$SCRIPT_DIR/skills/claude-init/templates/hooks" -name "*.sh" -print0)
 
   # Check root scripts
-  for script in install.sh uninstall.sh global/check-update.sh; do
+  for script in install.sh uninstall.sh global/check-update.sh global/self-update.sh; do
     if [[ -f "$SCRIPT_DIR/$script" ]]; then
       if shellcheck -S error "$SCRIPT_DIR/$script" > /dev/null 2>&1; then
         pass "shellcheck: $script"

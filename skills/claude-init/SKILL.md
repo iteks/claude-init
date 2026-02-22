@@ -8,6 +8,28 @@ Analyze any project and generate optimal Claude Code integration — hooks, rule
 
 You are the `claude-init` skill. When invoked, follow this complete workflow.
 
+### Pre-check: `/claude-init update` Command
+
+If the user invoked `/claude-init update` (check if `$ARGUMENTS` contains "update"), run the self-update flow **instead of** the normal pipeline:
+
+1. Resolve the claude-init repo root from the skill symlink:
+   ```
+   SKILL_LINK="$HOME/.claude/skills/claude-init"
+   SKILL_TARGET="$(readlink "$SKILL_LINK")"
+   REPO_ROOT — two directories up from the skill target
+   ```
+2. Get the current local version: `git -C $REPO_ROOT describe --tags --abbrev=0`
+3. Fetch tags: `git -C $REPO_ROOT fetch --tags origin`
+4. Find the latest tag: `git -C $REPO_ROOT tag -l 'v*' --sort=-version:refname | head -1`
+5. If the latest tag matches the current version, report: `claude-init is already up to date ($CURRENT_VERSION).` and stop.
+6. Checkout the latest tag: `git -C $REPO_ROOT checkout $LATEST_TAG`
+7. Report: `Updated claude-init: $CURRENT_VERSION -> $LATEST_TAG`
+8. Ask the user: "Run `/claude-init` to apply updates to this project?"
+
+**Do not continue to Phase 1** when handling the update command. The update flow is complete after step 8.
+
+---
+
 ### Execution Strategy — Context Preservation
 
 claude-init's phases involve heavy file reading (scanning lock files, reading templates, extracting conventions). To keep the main session clean for user interaction and reporting, delegate the heavy phases to subagents using the `Task` tool.
@@ -511,9 +533,9 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
 
 #### 0. Version Check
 - Read `.claude/.claude-init-version` if it exists
-- Get current claude-init version: `git -C {skill_path}/../.. rev-parse --short HEAD` (resolve `{skill_path}` from the skill's location — the repo root is two directories up from the skill)
+- Get current claude-init version: `git -C {skill_path}/../.. describe --tags --abbrev=0` (resolve `{skill_path}` from the skill's location — the repo root is two directories up from the skill)
 - If both versions are available and differ:
-  - Show: `claude-init updated: {old_version} → {new_version}`
+  - Show: `claude-init updated: {old_version} → {new_version}` (e.g., `v1.0.0 → v1.2.0`)
   - Compute new capabilities: compare the project's `capabilities` array against the full set (`hooks`, `rules`, `agents`, `mcp`, `skills`, `commands`, `permissions`, `plugins`)
   - Missing entries = new features added since last generation
   - If new capabilities exist, list them: `New capabilities available: plugins, commands`
@@ -879,17 +901,18 @@ Generate the following agents:
 - Commands are simple markdown files with a description and prompt text
 
 **10. `.claude/.claude-init-version`**
-- Get claude-init version: `git -C {skill_path}/../.. rev-parse --short HEAD` (resolve `{skill_path}` from the skill's location — the repo root is two directories up from the skill)
+- Get claude-init version: `git -C {skill_path}/../.. describe --tags --abbrev=0` (resolve `{skill_path}` from the skill's location — the repo root is two directories up from the skill)
 - Build the `capabilities` array from what was actually generated in this run (e.g., if hooks were created, include `"hooks"`; if MCP was declined, omit `"mcp"`)
 - Known capability keys: `hooks`, `rules`, `agents`, `mcp`, `skills`, `commands`, `permissions`, `plugins`
 - Write JSON file:
   ```json
   {
-    "version": "{git_short_hash}",
+    "version": "{tag_version}",
     "generated_at": "{ISO_8601_timestamp}",
     "capabilities": ["hooks", "rules", "agents", "skills", "commands", "permissions"]
   }
   ```
+  Example: `"version": "v1.2.0"` (semver tag, not a commit hash)
 - In merge mode: **ALWAYS overwrite** this file (unlike other config files) — it must reflect the current tool version
 - Add `.claude-init-version` to the `.gitignore` suggestion list (version stamp is machine-specific)
 

@@ -121,13 +121,15 @@ echo ""
 echo "Step 3: Setting up global hooks"
 echo ""
 
-if [[ -f "$SCRIPT_DIR/global/check-update.sh" ]]; then
-  chmod +x "$SCRIPT_DIR/global/check-update.sh"
-  echo "  Made check-update.sh executable"
-  echo "  SessionStart hook will notify when projects need re-configuring"
-else
-  echo "  Warning: check-update.sh not found at $SCRIPT_DIR/global/check-update.sh"
-fi
+for hook_script in check-update.sh self-update.sh; do
+  if [[ -f "$SCRIPT_DIR/global/$hook_script" ]]; then
+    chmod +x "$SCRIPT_DIR/global/$hook_script"
+    echo "  Made $hook_script executable"
+  else
+    echo "  Warning: $hook_script not found at $SCRIPT_DIR/global/$hook_script"
+  fi
+done
+echo "  SessionStart hook will notify when projects need re-configuring"
 
 # ── Summary ──
 
@@ -157,6 +159,6 @@ echo "  1. Restart Claude Code for permission changes to take effect"
 echo "  2. Open any project: cd ~/my-project && claude"
 echo "  3. Run: /claude-init"
 echo ""
-echo "To update: cd $SCRIPT_DIR && git pull"
+echo "To update: /claude-init update (inside any Claude Code session)"
 echo "To uninstall: bash $SCRIPT_DIR/uninstall.sh"
 echo "Backup: $BACKUP_FILE"
