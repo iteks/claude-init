@@ -34,8 +34,8 @@ All templates live in `skills/claude-init/templates/`:
 | Directory | Purpose | Count |
 |---|---|---|
 | `settings/` | `.claude/settings.json` templates per framework | 6 |
-| `hooks/` | Hook scripts organized by language (`universal/`, `php/`, `javascript/`, `python/`, `go/`, `rust/`, `shell/`) | 12 |
-| `rules/` | Path-scoped convention rules (`php/`, `javascript/`, `python/`) | 8 |
+| `hooks/` | Hook scripts organized by language (`universal/`, `php/`, `javascript/`, `python/`, `go/`, `rust/`, `shell/`) | 11 |
+| `rules/` | Path-scoped convention rules (`php/`, `javascript/`, `python/`) | 9 |
 | `agents/` | Agent definitions (core + security + test + suggested) | 15 |
 | `claude-md/` | CLAUDE.md templates per framework | 6 |
 | `skills/` | Skill SKILL.md templates per framework | 5 |
@@ -45,11 +45,14 @@ All templates live in `skills/claude-init/templates/`:
 ### Placeholder System
 
 Templates use `{{PLACEHOLDER}}` syntax for values replaced during generation:
-- `{{PROJECT_NAME}}`, `{{PROJECT_DESCRIPTION}}` — from directory or user input
-- `{{PHP_VERSION}}`, `{{LARAVEL_VERSION}}` — from detected versions
-- `{{DEV_COMMAND}}`, `{{TEST_COMMAND}}`, `{{FORMAT_COMMAND}}` — from dev command detection
+- `{{PROJECT_NAME}}`, `{{PROJECT_DESCRIPTION}}`, `{{PROJECT_SLUG}}` — from directory or user input
+- `{{PHP_VERSION}}`, `{{LARAVEL_VERSION}}`, `{{PYTHON_VERSION}}`, `{{DJANGO_VERSION}}`, `{{FASTAPI_VERSION}}`, `{{NEXTJS_VERSION}}`, `{{REACT_VERSION}}`, `{{EXPO_VERSION}}` — from detected versions
+- `{{DEV_COMMAND}}`, `{{TEST_COMMAND}}`, `{{FORMAT_COMMAND}}`, `{{BUILD_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TYPECHECK_COMMAND}}` — from dev command detection
 - `{{FORMATTER}}`, `{{FORMATTER_COMMAND}}` — from detected formatter
-- `{{ARCHITECTURE_NOTES}}`, `{{CONVENTIONS}}` — from source code analysis
+- `{{DATABASE}}`, `{{PACKAGE_MANAGER}}`, `{{INDENT_STYLE}}` — from project analysis
+- `{{STYLING}}`, `{{STYLING_CONVENTIONS}}` — from detected CSS/styling framework
+- `{{ARCHITECTURE_NOTES}}`, `{{CONVENTIONS}}`, `{{WATCH_ITEMS}}` — from source code analysis
+- `{{STACK_DESCRIPTION}}`, `{{DIRECTORY_TABLE}}` — combined project summaries
 - `{{DEV_INSTRUCTIONS}}` — generated from detected dev commands
 - `{{RESOURCE_NAME}}`, `{{RESOURCE_PLURAL}}` — for skill templates
 
@@ -64,7 +67,7 @@ Templates use `{{PLACEHOLDER}}` syntax for values replaced during generation:
 
 ## Conventions
 
-- **Indentation**: 2 spaces for JSON/Markdown, tabs for shell scripts
+- **Indentation**: 2 spaces for JSON/Markdown/Shell scripts
 - **Hook scripts**: Always use `jq` for JSON processing, read stdin with `INPUT=$(cat)`, structured output with `jq -n`
 - **Agent frontmatter fields**: `name`, `description`, `model`, `color`, `tools`, `permissionMode`, `maxTurns`, `memory`
 - **Rule frontmatter**: `paths:` array with glob patterns — always validate globs match actual files
