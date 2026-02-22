@@ -28,6 +28,13 @@ paths:
 - Use `vi.fn()` for creating mock functions
 - Clear mocks in `afterEach()`: `vi.restoreAllMocks()`
 
+## Async Testing
+
+- Use `async/await` in test functions
+- Always `await` assertions on async code
+- Use `waitFor()` from testing-library for async UI assertions
+- Use `vi.useFakeTimers()` and `vi.advanceTimersByTime()` for timer-based tests
+
 ## File Organization
 
 - Co-locate tests with source files or use `__tests__/` directories
