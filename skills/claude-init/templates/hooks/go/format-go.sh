@@ -15,7 +15,16 @@ if [[ ! -f "$FILE_PATH" ]]; then
 fi
 
 if command -v gofmt &>/dev/null; then
-  gofmt -w "$FILE_PATH" 2>&1
+  FIX_OUTPUT=$(gofmt -w "$FILE_PATH" 2>&1)
+  FIX_EXIT=$?
 elif command -v goimports &>/dev/null; then
-  goimports -w "$FILE_PATH" 2>&1
+  FIX_OUTPUT=$(goimports -w "$FILE_PATH" 2>&1)
+  FIX_EXIT=$?
+else
+  exit 0
+fi
+
+if [[ $FIX_EXIT -ne 0 ]]; then
+  jq -n --arg msg "Go formatting errors in $FILE_PATH:\n$FIX_OUTPUT" \
+    '{ "systemMessage": $msg }'
 fi

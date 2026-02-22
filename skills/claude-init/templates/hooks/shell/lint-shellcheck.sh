@@ -14,10 +14,11 @@ fi
 case "$FILE_PATH" in
   *.sh|*.bash)
     if command -v shellcheck &>/dev/null; then
-      OUTPUT=$(shellcheck -f gcc "$FILE_PATH" 2>&1)
-      EXIT_CODE=$?
-      if [[ $EXIT_CODE -ne 0 ]]; then
-        echo "$OUTPUT"
+      LINT_OUTPUT=$(shellcheck -f gcc "$FILE_PATH" 2>&1)
+      LINT_EXIT=$?
+      if [[ $LINT_EXIT -ne 0 ]]; then
+        jq -n --arg msg "shellcheck issues in $FILE_PATH:\n$LINT_OUTPUT" \
+          '{ "systemMessage": $msg }'
       fi
     fi
     ;;

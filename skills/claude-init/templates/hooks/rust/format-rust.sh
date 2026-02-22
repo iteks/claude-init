@@ -15,5 +15,13 @@ if [[ ! -f "$FILE_PATH" ]]; then
 fi
 
 if command -v rustfmt &>/dev/null; then
-  rustfmt "$FILE_PATH" 2>&1
+  FIX_OUTPUT=$(rustfmt "$FILE_PATH" 2>&1)
+  FIX_EXIT=$?
+else
+  exit 0
+fi
+
+if [[ $FIX_EXIT -ne 0 ]]; then
+  jq -n --arg msg "Rust formatting errors in $FILE_PATH:\n$FIX_OUTPUT" \
+    '{ "systemMessage": $msg }'
 fi
