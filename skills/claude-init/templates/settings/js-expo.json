@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "defaultMode": "plan"
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -25,12 +28,7 @@
             "type": "command",
             "command": ".claude/hooks/guard-config-files.sh",
             "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": ".claude/hooks/guard-env.sh",
