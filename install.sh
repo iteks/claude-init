@@ -83,6 +83,10 @@ fi
 cp "$SETTINGS_FILE" "$BACKUP_FILE"
 echo "  Backed up settings to $BACKUP_FILE"
 
+# Replace placeholder with actual repo path in patch
+RESOLVED_PATCH=$(mktemp)
+sed "s|{{CLAUDE_INIT_DIR}}|$SCRIPT_DIR|g" "$PATCH_FILE" > "$RESOLVED_PATCH"
+
 # Merge patch into settings (non-destructive — adds to arrays, doesn't overwrite)
 MERGED=$(jq -s '
   def merge_arrays:
@@ -102,7 +106,9 @@ MERGED=$(jq -s '
   if ($existing.permissions.deny // [] | length) > 0 and ($patch.permissions.deny // [] | length) > 0
   then .permissions.deny = ([$existing.permissions.deny, $patch.permissions.deny] | merge_arrays)
   else . end
-' "$SETTINGS_FILE" "$PATCH_FILE")
+' "$SETTINGS_FILE" "$RESOLVED_PATCH")
+
+rm -f "$RESOLVED_PATCH"
 
 echo "$MERGED" > "$SETTINGS_FILE"
 

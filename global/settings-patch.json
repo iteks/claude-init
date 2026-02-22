@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude-init/global/check-update.sh",
+            "command": "{{CLAUDE_INIT_DIR}}/global/check-update.sh",
             "timeout": 5
           }
         ]
