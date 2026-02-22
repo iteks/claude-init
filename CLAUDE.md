@@ -64,6 +64,8 @@ Templates use `{{PLACEHOLDER}}` syntax for values replaced during generation:
 | `install.sh` | Symlinks skill globally + merges permission optimizations |
 | `uninstall.sh` | Removes symlink + cleans up settings |
 | `global/settings-patch.json` | Global permission pre-approvals and denials |
+| `global/check-update.sh` | SessionStart hook — two-tier update detection (local + throttled remote) |
+| `global/self-update.sh` | Self-update script — fetches latest tag and checks out |
 
 ## Conventions
 

@@ -35,7 +35,7 @@ cd ~/my-project && claude
 
 That's it. The install creates a global `/claude-init` skill available in every project, plus permission optimizations so you stop clicking "Allow" on every read-only command.
 
-**To update:** `cd ~/.claude-init && git pull`
+**To update:** `/claude-init update` (inside any Claude Code session)
 **To uninstall:** `bash ~/.claude-init/uninstall.sh`
 
 ---
@@ -47,7 +47,7 @@ The `install.sh` script does two things:
 **1. Installs the `/claude-init` skill globally**
 - Symlinks `~/.claude/skills/claude-init` to the cloned repo
 - Makes `/claude-init` available in every Claude Code session
-- Updates automatically when you `git pull`
+- Updates via `/claude-init update` — fetches latest release and applies it
 
 **2. Optimizes global permissions**
 - Auto-approves read-only commands: `git status`, `ls`, `gh pr view`, `jq`, etc.
@@ -454,7 +454,8 @@ When fixing gaps:
 The `install.sh` script merges these into `~/.claude/settings.json`:
 
 **Auto-approved (read-only, zero side effects):**
-- Git reads: `status`, `log`, `diff`, `branch`, `show`, `rev-parse`, `ls-files`, `remote`
+- Git reads: `status`, `log`, `diff`, `branch`, `show`, `rev-parse`, `ls-files`, `remote`, `tag`, `describe`
+- Git update ops: `fetch`, `ls-remote`, `checkout v*` (for self-update)
 - Filesystem: `ls`, `wc`, `sort`, `uniq`, `pwd`, `which`
 - GitHub CLI: `issue view/list`, `pr view/list/checks`, `repo view`, `api`
 - Metadata: `--version`, `--help`
@@ -486,7 +487,7 @@ Hook scripts use bash and `jq`, which are available in WSL and Git Bash. The `/c
 Community testing shows Claude starts ignoring rules unpredictably when CLAUDE.md exceeds ~300 lines. claude-init distributes detailed conventions into path-scoped rules (which only load when relevant files are touched) to keep CLAUDE.md concise.
 
 **How do I update?**
-`cd ~/.claude-init && git pull`. The symlink means updates take effect immediately — no reinstall needed.
+Run `/claude-init update` inside any Claude Code session. This fetches the latest release tag and checks it out. The symlink means updates take effect immediately — no reinstall needed.
 
 **Can I install somewhere other than ~/.claude-init?**
 Yes. Clone wherever you want. The symlink points to wherever you cloned it.
@@ -495,29 +496,47 @@ Yes. Clone wherever you want. The symlink points to wherever you cloned it.
 
 ## Keeping Projects Updated
 
-When you update claude-init (`git pull`), the SKILL.md and templates update automatically (they're symlinked). But projects that have already been configured keep their generated config files unchanged — they don't know about new features.
+claude-init uses **semver tags** (e.g., `v1.0.0`, `v1.2.0`) for version identity and a **two-tier update detection** system.
 
-claude-init handles this with version tracking:
+### Update detection
 
-1. **Automatic notification** — A SessionStart hook checks each project's version stamp against the current tool version. If they differ, you'll see:
-   ```
-   claude-init has updates since this project was configured (b73fae1 → a1c9d2e). Run /claude-init to upgrade.
-   ```
-
-2. **Smart upgrade** — Running `/claude-init` on an already-configured project enters Audit Mode, which:
-   - Shows what version the project was configured with
-   - Lists new capabilities available since the last run
-   - Scans for gaps and offers to fill them
-   - Never overwrites existing config — only adds what's missing
-
-3. **Version file** — Each configured project gets `.claude/.claude-init-version` tracking the tool version and which capabilities were generated. This file is machine-specific and should be in `.gitignore`.
-
-**Upgrade workflow:**
-```bash
-cd ~/.claude-init && git pull    # Update the tool
-# Next time you open a configured project, you'll be notified
-# Run /claude-init to upgrade that project's config
+**Tier 1 — Local check (every session, no network):**
+Compares the project's stamped version against the locally installed version. Catches "tool was already updated but project hasn't re-run `/claude-init`":
 ```
+claude-init updated to v1.2.0 (project configured with v1.0.0). Run /claude-init to upgrade this project.
+```
+
+**Tier 2 — Remote check (once per day, network):**
+Queries the remote repository for the latest tag. If a newer version exists:
+```
+claude-init v1.2.0 available (you have v1.0.0). Run: /claude-init update
+```
+
+The remote check is throttled to once per day (epoch-day model). Skipped automatically in CI environments (`CI=true`) or when opted out (`CLAUDE_INIT_NO_UPDATE_CHECK=1`).
+
+### Self-update
+
+Run `/claude-init update` inside any Claude Code session to update to the latest release. This:
+1. Fetches the latest tags from the remote
+2. Checks out the newest semver tag
+3. Reports what changed (e.g., `Updated claude-init: v1.0.0 -> v1.2.0`)
+4. Prompts to re-run `/claude-init` to apply updates to the current project
+
+### Smart upgrade
+
+Running `/claude-init` on an already-configured project enters Audit Mode, which:
+- Shows what version the project was configured with
+- Lists new capabilities available since the last run
+- Scans for gaps and offers to fill them
+- Never overwrites existing config — only adds what's missing
+
+### Version file
+
+Each configured project gets `.claude/.claude-init-version` tracking the tool version (semver tag) and which capabilities were generated. This file is machine-specific and should be in `.gitignore`.
+
+### Opt-out
+
+Set `CLAUDE_INIT_NO_UPDATE_CHECK=1` to disable all update checks. Checks are also skipped when `CI=true`.
 
 ---
 
