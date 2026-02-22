@@ -41,12 +41,57 @@ if [[ -n "$LATEST_BACKUP" ]]; then
     cp "$LATEST_BACKUP" "$SETTINGS_FILE"
     echo "  Restored settings from backup"
   else
-    echo "  Skipped — settings not reverted"
+    echo "  Skipped — will clean up individual entries instead"
+    CLEAN_PERMISSIONS=true
   fi
 else
   echo "  No backup files found."
-  echo "  You can manually edit $SETTINGS_FILE to remove unwanted permissions."
+  CLEAN_PERMISSIONS=true
 fi
+
+# ── Step 2b: Remove claude-init permission entries ──
+
+if [[ "${CLEAN_PERMISSIONS:-false}" == "true" ]] && [[ -f "$SETTINGS_FILE" ]] && command -v jq &>/dev/null; then
+  echo ""
+  echo "Step 2b: Removing claude-init permission entries"
+
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PATCH_FILE="$SCRIPT_DIR/global/settings-patch.json"
+
+  if [[ -f "$PATCH_FILE" ]]; then
+    # Remove allow entries that were added by claude-init
+    PATCH_ALLOWS=$(jq -r '.permissions.allow // [] | .[]' "$PATCH_FILE" 2>/dev/null)
+    PATCH_DENIES=$(jq -r '.permissions.deny // [] | .[]' "$PATCH_FILE" 2>/dev/null)
+
+    CLEANED=$(jq --argjson patch_allows "$(jq '.permissions.allow // []' "$PATCH_FILE")" \
+                  --argjson patch_denies "$(jq '.permissions.deny // []' "$PATCH_FILE")" '
+      .permissions.allow = ([.permissions.allow // [] | .[] | select(. as $item | $patch_allows | index($item) | not)]) |
+      .permissions.deny = ([.permissions.deny // [] | .[] | select(. as $item | $patch_denies | index($item) | not)]) |
+      if .permissions.allow | length == 0 then del(.permissions.allow) else . end |
+      if .permissions.deny | length == 0 then del(.permissions.deny) else . end |
+      if .permissions | length == 0 then del(.permissions) else . end
+    ' "$SETTINGS_FILE")
+    echo "$CLEANED" > "$SETTINGS_FILE"
+    echo "  Removed claude-init permission entries from settings"
+  else
+    echo "  Patch file not found — skipping permission cleanup"
+    echo "  You can manually edit $SETTINGS_FILE to remove unwanted permissions."
+  fi
+
+  # Remove env and teammateMode entries
+  if jq -e '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS' "$SETTINGS_FILE" &>/dev/null; then
+    CLEANED=$(jq '
+      del(.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS) |
+      if .env | length == 0 then del(.env) else . end |
+      del(.teammateMode) |
+      if . == {} then . else . end
+    ' "$SETTINGS_FILE")
+    echo "$CLEANED" > "$SETTINGS_FILE"
+    echo "  Removed Agent Teams configuration"
+  fi
+fi
+
+echo ""
 
 # ── Step 3: Remove SessionStart hook from global settings ──
 
