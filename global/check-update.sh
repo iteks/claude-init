@@ -21,7 +21,7 @@ if [[ ! -L "$SKILL_LINK" ]]; then
 fi
 
 SKILL_TARGET="$(readlink "$SKILL_LINK")"
-REPO_ROOT="$(cd "$(dirname "$SKILL_TARGET")/../.." 2>/dev/null && pwd)"
+REPO_ROOT="$(cd "$(dirname "$SKILL_TARGET")/.." 2>/dev/null && pwd)"
 
 if [[ ! -d "$REPO_ROOT/.git" ]]; then
   exit 0
@@ -44,8 +44,8 @@ if [[ -f "$LAST_CHECK_FILE" ]]; then
 fi
 
 if [[ "$TODAY_EPOCH_DAY" -gt "$LAST_CHECK_DAY" ]]; then
-  # Fetch latest remote tag (timeout after 3 seconds)
-  REMOTE_TAGS="$(timeout 3 git -C "$REPO_ROOT" ls-remote --tags origin 'refs/tags/v*' 2>/dev/null || true)"
+  # Fetch latest remote tag (hook timeout in settings-patch.json caps total runtime)
+  REMOTE_TAGS="$(git -C "$REPO_ROOT" ls-remote --tags origin 'refs/tags/v*' 2>/dev/null || true)"
 
   if [[ -n "$REMOTE_TAGS" ]]; then
     # Extract tag names, sort by version, take the latest

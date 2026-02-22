@@ -13,10 +13,17 @@ if [[ ! -L "$SKILL_LINK" ]]; then
 fi
 
 SKILL_TARGET="$(readlink "$SKILL_LINK")"
-REPO_ROOT="$(cd "$(dirname "$SKILL_TARGET")/../.." 2>/dev/null && pwd)"
+REPO_ROOT="$(cd "$(dirname "$SKILL_TARGET")/.." 2>/dev/null && pwd)"
 
 if [[ ! -d "$REPO_ROOT/.git" ]]; then
   echo "Error: claude-init repo not found at $REPO_ROOT"
+  exit 1
+fi
+
+# Check for local modifications that would block checkout
+if [[ -n "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null)" ]]; then
+  echo "Error: claude-init repo has local modifications."
+  echo "Stash or commit your changes first: git -C $REPO_ROOT stash"
   exit 1
 fi
 
@@ -25,7 +32,10 @@ CURRENT_VERSION="$(git -C "$REPO_ROOT" describe --tags --abbrev=0 2>/dev/null ||
 
 # Fetch latest tags from origin
 echo "Fetching tags from origin..."
-git -C "$REPO_ROOT" fetch --tags origin 2>/dev/null
+if ! git -C "$REPO_ROOT" fetch --tags origin 2>&1; then
+  echo "Error: Failed to fetch tags from origin. Check your network connection."
+  exit 1
+fi
 
 # Find latest tag sorted by version
 LATEST_TAG="$(git -C "$REPO_ROOT" tag -l 'v*' --sort=-version:refname | head -1)"
@@ -42,7 +52,11 @@ if [[ "$CURRENT_VERSION" == "$LATEST_TAG" ]]; then
 fi
 
 # Checkout the latest tag (detached HEAD)
-git -C "$REPO_ROOT" checkout "$LATEST_TAG" 2>/dev/null
+if ! git -C "$REPO_ROOT" checkout "$LATEST_TAG" 2>&1; then
+  echo "Error: Failed to checkout $LATEST_TAG."
+  echo "Check repo state: git -C $REPO_ROOT status"
+  exit 1
+fi
 
 echo "Updated claude-init: $CURRENT_VERSION -> $LATEST_TAG"
 
