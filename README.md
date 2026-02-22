@@ -2,6 +2,7 @@
 
 **Stop configuring Claude Code manually. Start building.**
 
+[![Tests](https://github.com/iteks/claude-init/actions/workflows/test.yml/badge.svg)](https://github.com/iteks/claude-init/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Analyze any project and generate optimal Claude Code integration — hooks, rules, agents, skills, commands, MCP servers, settings, and CLAUDE.md — in one command.
