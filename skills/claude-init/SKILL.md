@@ -16,7 +16,7 @@ claude-init's phases involve heavy file reading (scanning lock files, reading te
 
 | Subagent | Phases | Model | Input | Output |
 |---|---|---|---|---|
-| Detection | 2B + 2B.5 | `haiku` | Project root path | Structured stack summary + signal scan results |
+| Detection | 2B + 2B.5–2B.9 | `haiku` | Project root path | Structured stack summary + signal scan results |
 | Generation | 3 + 4 | `sonnet` | Stack summary + user selections + project root path | List of files created/modified |
 
 **What stays in the main session** (requires user interaction or is lightweight):
@@ -793,11 +793,22 @@ Generate the following agents:
 - Replace all `{{PLACEHOLDER}}` markers with detected/provided values:
   - `{{PROJECT_NAME}}` — from directory name or user input
   - `{{PROJECT_DESCRIPTION}}` — from user input or package.json/composer.json description
-  - `{{PHP_VERSION}}`, `{{LARAVEL_VERSION}}`, etc. — from detected versions
+  - `{{PHP_VERSION}}`, `{{LARAVEL_VERSION}}` — from detected PHP/Laravel versions
+  - `{{PYTHON_VERSION}}`, `{{DJANGO_VERSION}}`, `{{FASTAPI_VERSION}}` — from detected Python framework versions
+  - `{{NEXTJS_VERSION}}`, `{{REACT_VERSION}}`, `{{EXPO_VERSION}}` — from detected JS framework versions
   - `{{DEV_URL}}`, `{{DEV_COMMAND}}` — from project config or common defaults
+  - `{{BUILD_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TYPECHECK_COMMAND}}` — from dev command detection
   - `{{FORMATTER}}`, `{{FORMATTER_COMMAND}}` — from detected formatter
+  - `{{DATABASE}}` — from detected database (MySQL, PostgreSQL, SQLite, etc.)
+  - `{{PACKAGE_MANAGER}}` — from detected package manager (npm, pnpm, bun, poetry, etc.)
+  - `{{STYLING}}`, `{{STYLING_CONVENTIONS}}` — from detected CSS/styling framework
+  - `{{INDENT_STYLE}}` — from .editorconfig or source file analysis
+  - `{{PROJECT_SLUG}}` — URL-safe project name (lowercase, hyphens)
   - `{{ARCHITECTURE_NOTES}}` — from reading source code structure
   - `{{CONVENTIONS}}` — from detected coding conventions
+  - `{{STACK_DESCRIPTION}}` — combined language + framework + infrastructure summary
+  - `{{DIRECTORY_TABLE}}` — markdown table of key directories and their purpose
+  - `{{WATCH_ITEMS}}` — project-specific "Things to Watch For" items
 - If dev commands were detected (Gap 5), use them for placeholder replacement:
   - `{{DEV_COMMAND}}` — use the detected `dev` or `start` command instead of framework defaults
   - `{{TEST_COMMAND}}` — use the detected `test` command
