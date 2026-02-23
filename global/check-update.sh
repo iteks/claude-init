@@ -1,4 +1,8 @@
 #!/bin/bash
+# Intentionally only set -u (not -e or pipefail) — this is a SessionStart hook
+# that must never abort Claude Code's startup. Errors are silently swallowed
+# so the user's session always starts cleanly.
+set -u
 # claude-init: SessionStart hook — notify when tool has updates
 # Two-tier detection: local tag comparison + throttled remote check
 #
@@ -8,9 +12,16 @@
 # Tier 2 (once per day, network):
 #   Run `git ls-remote --tags origin` to discover latest remote tag
 #   Store last-check epoch-day in ~/.claude/.claude-init-last-check
+#
+# Requires: git, jq, sort -V (GNU coreutils 7.0+ / macOS 12+)
 
 # Opt-out: skip checks entirely
 if [[ "${CLAUDE_INIT_NO_UPDATE_CHECK:-}" == "1" ]] || [[ "${CI:-}" == "true" ]]; then
+  exit 0
+fi
+
+# Verify sort -V is available (GNU coreutils 7.0+ / macOS 12+)
+if ! printf '1.0\n2.0\n' | sort -V >/dev/null 2>&1; then
   exit 0
 fi
 
@@ -21,6 +32,10 @@ if [[ ! -L "$SKILL_LINK" ]]; then
 fi
 
 SKILL_TARGET="$(readlink "$SKILL_LINK")"
+# Resolve relative symlink targets against symlink's parent directory
+if [[ "$SKILL_TARGET" != /* ]]; then
+  SKILL_TARGET="$(cd "$(dirname "$SKILL_LINK")" && cd "$(dirname "$SKILL_TARGET")" && pwd)/$(basename "$SKILL_TARGET")"
+fi
 REPO_ROOT="$(cd "$(dirname "$SKILL_TARGET")/.." 2>/dev/null && pwd)"
 
 if [[ ! -d "$REPO_ROOT/.git" ]]; then
@@ -41,6 +56,10 @@ LAST_CHECK_DAY=0
 
 if [[ -f "$LAST_CHECK_FILE" ]]; then
   LAST_CHECK_DAY=$(cat "$LAST_CHECK_FILE" 2>/dev/null || echo 0)
+fi
+
+if ! [[ "$LAST_CHECK_DAY" =~ ^[0-9]+$ ]]; then
+  LAST_CHECK_DAY=0
 fi
 
 if [[ "$TODAY_EPOCH_DAY" -gt "$LAST_CHECK_DAY" ]]; then

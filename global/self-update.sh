@@ -13,6 +13,10 @@ if [[ ! -L "$SKILL_LINK" ]]; then
 fi
 
 SKILL_TARGET="$(readlink "$SKILL_LINK")"
+# Resolve relative symlink targets against symlink's parent directory
+if [[ "$SKILL_TARGET" != /* ]]; then
+  SKILL_TARGET="$(cd "$(dirname "$SKILL_LINK")" && cd "$(dirname "$SKILL_TARGET")" && pwd)/$(basename "$SKILL_TARGET")"
+fi
 REPO_ROOT="$(cd "$(dirname "$SKILL_TARGET")/.." 2>/dev/null && pwd)"
 
 if [[ ! -d "$REPO_ROOT/.git" ]]; then
@@ -32,7 +36,7 @@ CURRENT_VERSION="$(git -C "$REPO_ROOT" describe --tags --abbrev=0 2>/dev/null ||
 
 # Fetch latest tags from origin
 echo "Fetching tags from origin..."
-if ! git -C "$REPO_ROOT" fetch --tags origin 2>&1; then
+if ! git -C "$REPO_ROOT" fetch --tags --quiet origin 2>&1; then
   echo "Error: Failed to fetch tags from origin. Check your network connection."
   exit 1
 fi
@@ -46,22 +50,26 @@ if [[ -z "$LATEST_TAG" ]]; then
   exit 1
 fi
 
+# Validate tag format (vN.N.N or vN.N.N-suffix)
+if ! [[ "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+ ]]; then
+  echo "Error: Latest tag '$LATEST_TAG' does not match expected format (vX.Y.Z)."
+  exit 1
+fi
+
 if [[ "$CURRENT_VERSION" == "$LATEST_TAG" ]]; then
   echo "claude-init is already up to date ($CURRENT_VERSION)."
   exit 0
 fi
 
 # Checkout the latest tag (detached HEAD)
-if ! git -C "$REPO_ROOT" checkout "$LATEST_TAG" 2>&1; then
+if ! git -C "$REPO_ROOT" checkout --quiet "$LATEST_TAG" 2>&1; then
   echo "Error: Failed to checkout $LATEST_TAG."
   echo "Check repo state: git -C $REPO_ROOT status"
   exit 1
 fi
 
 echo "Updated claude-init: $CURRENT_VERSION -> $LATEST_TAG"
+echo "(Repository is in detached HEAD state at $LATEST_TAG — this is normal)"
 
 # Reset the daily check timestamp so the next session sees fresh state
-LAST_CHECK_FILE="$HOME/.claude/.claude-init-last-check"
-if [[ -f "$LAST_CHECK_FILE" ]]; then
-  rm -f "$LAST_CHECK_FILE"
-fi
+rm -f "$HOME/.claude/.claude-init-last-check"

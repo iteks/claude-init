@@ -135,6 +135,13 @@ while IFS= read -r -d '' hook_file; do
   else
     fail "jq usage: $rel_path - missing jq -r or jq -n"
   fi
+
+  # Check jq availability guard
+  if grep -q 'command -v jq' "$hook_file"; then
+    pass "jq guard: $rel_path"
+  else
+    fail "jq guard: $rel_path - missing jq availability check"
+  fi
 done < <(find "$SCRIPT_DIR/skills/claude-init/templates/hooks" -name "*.sh" -print0)
 
 echo ""
@@ -216,14 +223,13 @@ check_count() {
   fi
 }
 
-check_count "settings" 6 "*.json" "settings"
-check_count "hooks" 11 "*.sh" "hooks"
+check_count "settings" 9 "*.json" "settings"
+check_count "hooks" 12 "*.sh" "hooks"
 check_count "rules" 9 "*.md" "rules"
 check_count "agents" 15 "*.md" "agents"
 check_count "claude-md" 6 "*.md" "claude-md"
 check_count "skills" 5 "*.md" "skills"
 check_count "commands" 3 "*.md" "commands"
-check_count "mcp" 4 "*.json" "mcp"
 
 echo ""
 

@@ -12,6 +12,11 @@ SETTINGS_FILE="$HOME/.claude/settings.json"
 PATCH_FILE="$SCRIPT_DIR/global/settings-patch.json"
 BACKUP_FILE="$SETTINGS_FILE.backup.$(date +%Y%m%d%H%M%S)"
 
+# Clean up temp files on exit
+TMPFILES=()
+cleanup() { for f in "${TMPFILES[@]}"; do rm -f "$f" 2>/dev/null; done; }
+trap cleanup EXIT
+
 echo "=============================================="
 echo "  claude-init"
 echo "  Stop configuring Claude Code manually."
@@ -85,32 +90,48 @@ echo "  Backed up settings to $BACKUP_FILE"
 
 # Replace placeholder with actual repo path in patch
 RESOLVED_PATCH=$(mktemp)
+TMPFILES+=("$RESOLVED_PATCH")
 sed "s|{{CLAUDE_INIT_DIR}}|$SCRIPT_DIR|g" "$PATCH_FILE" > "$RESOLVED_PATCH"
 
 # Merge patch into settings (non-destructive — adds to arrays, doesn't overwrite)
+MERGE_ERR=$(mktemp)
+TMPFILES+=("$MERGE_ERR")
 MERGED=$(jq -s '
-  def merge_arrays:
-    . as [$a, $b] |
-    if ($a | type) == "array" and ($b | type) == "array"
-    then ($a + $b) | unique
-    elif ($b | type) == "object" and ($a | type) == "object"
-    then $a * $b
-    else $b
-    end;
-
   .[0] as $existing | .[1] as $patch |
   $existing * $patch |
-  if ($existing.permissions.allow // [] | length) > 0 and ($patch.permissions.allow // [] | length) > 0
-  then .permissions.allow = ([$existing.permissions.allow, $patch.permissions.allow] | merge_arrays)
-  else . end |
-  if ($existing.permissions.deny // [] | length) > 0 and ($patch.permissions.deny // [] | length) > 0
-  then .permissions.deny = ([$existing.permissions.deny, $patch.permissions.deny] | merge_arrays)
-  else . end
-' "$SETTINGS_FILE" "$RESOLVED_PATCH")
+  .permissions.allow = (
+    (($existing.permissions.allow // []) + ($patch.permissions.allow // []))
+    | unique
+  ) |
+  .permissions.deny = (
+    (($existing.permissions.deny // []) + ($patch.permissions.deny // []))
+    | unique
+  ) |
+  # Merge hooks arrays: append patch hooks to existing, deduplicate by command
+  reduce ($patch.hooks | to_entries[]) as {$key, $value} (.;
+    .hooks[$key] = (
+      (($existing.hooks[$key] // []) + ($value // []))
+      | group_by(.hooks[0].command)
+      | map(last)
+    )
+  )
+' "$SETTINGS_FILE" "$RESOLVED_PATCH" 2>"$MERGE_ERR")
 
 rm -f "$RESOLVED_PATCH"
 
-echo "$MERGED" > "$SETTINGS_FILE"
+# Validate merged JSON before writing — never corrupt settings.json
+if [[ -z "$MERGED" ]] || ! echo "$MERGED" | jq empty 2>/dev/null; then
+  echo "  Error: Settings merge failed. Your settings were not modified."
+  sed 's/^/  /' "$MERGE_ERR" >&2
+  echo "  Backup available at: $BACKUP_FILE"
+  exit 1
+fi
+
+# Atomic write — write to temp then move to prevent corruption on interrupted writes
+SETTINGS_TMP=$(mktemp "$SETTINGS_FILE.tmp.XXXXXX")
+TMPFILES+=("$SETTINGS_TMP")
+printf '%s\n' "$MERGED" > "$SETTINGS_TMP"
+mv "$SETTINGS_TMP" "$SETTINGS_FILE"
 
 echo ""
 echo "  Permissions merged into $SETTINGS_FILE"
@@ -145,19 +166,20 @@ echo "    Available in every project via: /claude-init"
 echo "    Symlink: ~/.claude/skills/claude-init"
 echo ""
 echo "  Permission pre-approvals (global)"
-echo "    Auto-approved: git reads, ls, gh CLI reads, --version, jq"
+echo "    Auto-approved: git reads, ls, gh CLI reads, --version, jq reads"
 echo "    Auto-denied: rm -rf /, sudo rm, chmod 777, curl|bash"
 echo ""
 echo "  Version check hook (global)"
 echo "    Notifies at session start when projects need re-configuring"
 echo ""
-echo "  Agent Teams (global)"
-echo "    Multi-agent orchestration via tmux enabled"
-echo ""
 echo "Next steps:"
 echo "  1. Restart Claude Code for permission changes to take effect"
 echo "  2. Open any project: cd ~/my-project && claude"
 echo "  3. Run: /claude-init"
+echo ""
+echo "Global environment setup:"
+echo "  Personalize your global Claude Code config: /claude-init global"
+echo "  Sets up ~/.claude/CLAUDE.md, agents, commands, rules, and memory"
 echo ""
 echo "To update: /claude-init update (inside any Claude Code session)"
 echo "To uninstall: bash $SCRIPT_DIR/uninstall.sh"
