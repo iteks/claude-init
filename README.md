@@ -5,7 +5,7 @@
 [![Tests](https://github.com/iteks/claude-init/actions/workflows/test.yml/badge.svg)](https://github.com/iteks/claude-init/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Analyze any project and generate optimal Claude Code integration — hooks, rules, agents, skills, commands, MCP servers, settings, and CLAUDE.md — in one command.
+Analyze any project and generate optimal Claude Code integration — hooks, rules, agents, skills, commands, settings, and CLAUDE.md — in one command.
 
 ---
 
@@ -14,12 +14,11 @@ Analyze any project and generate optimal Claude Code integration — hooks, rule
 - **Detects your stack** — language, framework, test runner, linter, formatter, package manager
 - **Generates `.claude/` config** — format-on-save hooks, safety guards, path-scoped rules, security review agents
 - **Detects dev commands** — extracts scripts from package.json, Makefile, composer.json, and more
-- **Suggests MCP servers** — detects Sentry, GitHub, Slack, Figma dependencies and generates `.mcp.json`
 - **Generates slash commands** — creates `/review-changes`, `/run-tests`, `/dev` commands
 - **Scaffolds skills** — creates guided workflows like `/new-api-endpoint` for detected patterns
 - **Suggests plugins** — recommends official marketplace plugins (LSP, GitHub, Sentry, etc.)
 - **Tunes permissions** — auto-approves test/lint/format commands, blocks dangerous operations
-- **Optimizes global settings** — permission pre-approvals, safety denials, Agent Teams
+- **Optimizes global settings** — permission pre-approvals, safety denials
 - **Keeps CLAUDE.md under 300 lines** — distributes conventions into rules and skills so Claude actually follows them
 
 ## Quick Start
@@ -53,7 +52,6 @@ The `install.sh` script does two things:
 **2. Optimizes global permissions**
 - Auto-approves read-only commands: `git status`, `ls`, `gh pr view`, `jq`, etc.
 - Auto-denies dangerous commands: `rm -rf /`, `sudo rm`, `chmod 777`, `curl|bash`
-- Enables Agent Teams (multi-agent orchestration via tmux)
 
 ---
 
@@ -160,7 +158,6 @@ Scans your existing setup, reports gaps, and offers to fix them without overwrit
     ├── run-tests.md           # /run-tests — run test suite
     └── dev.md                 # /dev — start dev server
 
-.mcp.json                      # MCP server configs (Sentry, GitHub, Slack, Figma)
 CLAUDE.md                      # Project overview, conventions, workflow automation (<300 lines)
 ```
 
@@ -180,7 +177,6 @@ CLAUDE.md                      # Project overview, conventions, workflow automat
 | `lint-shellcheck.sh` | Runs shellcheck after editing `.sh` files | Catches shell script bugs automatically |
 | `skills/*/SKILL.md` | Guided workflows for common project tasks | `/new-api-endpoint` scaffolds a complete endpoint |
 | `commands/*.md` | Quick slash commands | `/review-changes` reviews uncommitted changes |
-| `.mcp.json` | MCP server integrations | Connects Claude to Sentry, GitHub, Slack, Figma |
 | `permissions.allow` | Pre-approved commands | Stops "Allow?" prompts for test/lint/format commands |
 | `permissions.deny` | Blocked commands | Prevents `rm -rf`, `migrate:fresh`, dangerous ops |
 
@@ -201,21 +197,6 @@ Beyond the core three agents (code-reviewer, security-reviewer, test-generator),
 | 50+ dependencies | Large dependency tree in lock file | `dependency-analyzer` — checks for CVEs, unused deps, license conflicts |
 
 Agents are suggested — not forced. You choose which to include during setup.
-
----
-
-### MCP Server Integration
-
-claude-init detects project dependencies that have official Anthropic MCP servers and generates `.mcp.json` configuration:
-
-| Signal | Detection | MCP Server |
-|---|---|---|
-| Sentry SDK | `@sentry/node`, `sentry-sdk`, `sentry/sentry-laravel` in deps | `@anthropic/claude-code-sentry` |
-| GitHub remote | `github.com` in `.git/config` | `@anthropic/claude-code-github` |
-| Slack SDK | `@slack/web-api`, `@slack/bolt` in deps | `@anthropic/claude-code-slack` |
-| Figma references | Figma URLs in source files, `figma-api` in deps | `@anthropic/claude-code-figma` |
-
-MCP configs include placeholder tokens that you fill in after generation. `.mcp.json` is added to `.gitignore` (it contains auth tokens).
 
 ---
 
@@ -310,16 +291,16 @@ Detected commands populate CLAUDE.md dev instructions, generate permission allow
 
 ## Supported Stacks
 
-| Stack | Hooks | Rules | Agents | Skills | Commands | MCP | Permissions |
-|---|---|---|---|---|---|---|---|
-| PHP / Laravel | format-php, guard-env, guard-push, migration-guard | testing-pest, migration-safety, api-conventions | code-reviewer, security-reviewer-php, test-generator-pest + suggested | new-api-endpoint, new-test-suite | review-changes, run-tests, dev | Sentry, GitHub | test, format, artisan |
-| JS / Next.js | lint-changed, typecheck-changed, guard-config, guard-env, guard-push | testing-jest/vitest, component-conventions | code-reviewer, security-reviewer-js, test-generator + suggested | new-component, new-test-suite | review-changes, run-tests, dev | GitHub | test, lint, npm |
-| JS / Expo | lint-changed, typecheck-changed, guard-config, guard-push | testing-jest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest + suggested | new-component, new-test-suite | review-changes, run-tests, dev | GitHub | test, lint, npm |
-| Python / Django | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest + suggested | new-django-app, new-test-suite | review-changes, run-tests, dev | Sentry, GitHub | test, format, manage.py |
-| Python / FastAPI | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest + suggested | new-router, new-test-suite | review-changes, run-tests, dev | GitHub | test, format, pip |
-| Go | format-go, guard-env, guard-push | — | code-reviewer, security-reviewer-generic + suggested | new-test-suite | review-changes, run-tests | GitHub | test, go |
-| Rust | format-rust, guard-env, guard-push | — | code-reviewer, security-reviewer-generic + suggested | new-test-suite | review-changes, run-tests | GitHub | test, cargo |
-| Other | guard-env, guard-push, shellcheck (if shell) | — | code-reviewer, security-reviewer-generic | new-test-suite (if tests) | review-changes | GitHub (if remote) | detected tools |
+| Stack | Hooks | Rules | Agents | Skills | Commands | Permissions |
+|---|---|---|---|---|---|---|
+| PHP / Laravel | format-php, guard-env, guard-push, migration-guard | testing-pest, migration-safety, api-conventions | code-reviewer, security-reviewer-php, test-generator-pest + suggested | new-api-endpoint, new-test-suite | review-changes, run-tests, dev | test, format, artisan |
+| JS / Next.js | lint-changed, typecheck-changed, guard-config, guard-env, guard-push | testing-jest/vitest, component-conventions | code-reviewer, security-reviewer-js, test-generator + suggested | new-component, new-test-suite | review-changes, run-tests, dev | test, lint, npm |
+| JS / Expo | lint-changed, typecheck-changed, guard-config, guard-push | testing-jest, component-conventions | code-reviewer, security-reviewer-js, test-generator-jest + suggested | new-component, new-test-suite | review-changes, run-tests, dev | test, lint, npm |
+| Python / Django | format-python, guard-env, guard-push, migration-guard-django | testing-pytest, migration-safety-django | code-reviewer, security-reviewer-python, test-generator-pytest + suggested | new-django-app, new-test-suite | review-changes, run-tests, dev | test, format, manage.py |
+| Python / FastAPI | format-python, guard-env, guard-push | testing-pytest | code-reviewer, security-reviewer-python, test-generator-pytest + suggested | new-router, new-test-suite | review-changes, run-tests, dev | test, format, pip |
+| Go | format-go, guard-env, guard-push | — | code-reviewer, security-reviewer-generic + suggested | new-test-suite | review-changes, run-tests | test, go |
+| Rust | format-rust, guard-env, guard-push | — | code-reviewer, security-reviewer-generic + suggested | new-test-suite | review-changes, run-tests | test, cargo |
+| Other | guard-env, guard-push, shellcheck (if shell) | — | code-reviewer, security-reviewer-generic | new-test-suite (if tests) | review-changes | detected tools |
 
 **Adding a new stack?** See [Contributing](#contributing).
 
@@ -345,10 +326,9 @@ Detected commands populate CLAUDE.md dev instructions, generate permission allow
   +---------+----+  | (subagent: haiku)  |
             |       +--------+-----------+
             |                |
-            |    +-- Phase 2B.5-2B.9 ------+
+            |    +-- Phase 2C-2E -----------+
             |    | Signal scan             |
             |    | Agent suggestions       |
-            |    | MCP server suggestions  |
             |    | Skill suggestions       |
             |    | Plugin + cmd suggestions|
             |    | (same subagent)         |
@@ -357,7 +337,7 @@ Detected commands populate CLAUDE.md dev instructions, generate permission allow
                    v
           User confirms stack
           User selects agents, skills,
-          MCP servers, commands, plugins
+          commands, plugins
             (main session)
                    |
                    v
@@ -367,7 +347,7 @@ Detected commands populate CLAUDE.md dev instructions, generate permission allow
           | -> settings.json       |
           |    hooks, rules, agents|
           |    skills, commands    |
-          |    .mcp.json, CLAUDE.md|
+          |    CLAUDE.md           |
           |    permissions         |
           +---------+--------------+
                     v
@@ -384,7 +364,7 @@ Detected commands populate CLAUDE.md dev instructions, generate permission allow
 
 claude-init delegates heavy file-scanning and template-generation phases to subagents. This keeps the main session's context window clean:
 
-- **Detection** (Phase 2B + 2B.5-2B.9) runs in a haiku subagent — all lock file reading, convention extraction, signal scanning, and MCP/skill/plugin detection happens outside the main context
+- **Detection** (Phases 2B–2E) runs in a haiku subagent — all lock file reading, convention extraction, signal scanning, and skill/plugin detection happens outside the main context
 - **Generation** (Phase 3 + 4) runs in a sonnet subagent — template reading, placeholder replacement, file writing, permission generation, and validation happen outside the main context
 - **The main session** handles only Phase 1 (three file checks), user interaction (prompts, confirmations), and Phase 5 (displaying the summary)
 
@@ -409,7 +389,6 @@ The audit is the key differentiator for teams already using Claude Code. Here's 
 | **Agents** | Incorrect frontmatter (`allowed-tools` instead of `tools`) | Agent may not function correctly |
 | **Settings** | Missing hooks or permissions | Detected formatter but no auto-format hook |
 | **Hygiene** | `settings.local.json` not in `.gitignore` | Machine-specific config being committed |
-| **MCP** | MCP configs for detected services | Sentry SDK found but no `.mcp.json` entry |
 | **Skills** | Skills for detected project patterns | API routes exist but no `/new-api-endpoint` skill |
 | **Commands** | Common slash commands | No `/review-changes` or `/run-tests` commands |
 | **Permissions** | Allow/deny patterns for detected tools | Pest detected but no test command pre-approved |
@@ -439,7 +418,6 @@ When fixing gaps:
 | CLAUDE.md right-sizing | Under 300 lines | No limit | No limit | No limit |
 | Empty project support | Prompted flow | None | Prompted | Prompted |
 | External dependencies | Minimal (bash + jq) | None | None | Python 3.12 + API keys |
-| MCP server detection | Automatic | None | None | None |
 | Skill generation | Framework-specific | None | None | None |
 | Command generation | Common workflows | None | None | None |
 | Plugin suggestions | Official marketplace | None | None | None |
@@ -465,8 +443,36 @@ The `install.sh` script merges these into `~/.claude/settings.json`:
 **Auto-denied (universally dangerous):**
 - `rm -rf /`, `rm -rf ~*`, `sudo rm`, `chmod 777`, `curl|bash`, `wget|bash`
 
-**Environment:**
-- Agent Teams enabled (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`)
+---
+
+## Agent Teams (Optional)
+
+Claude Code supports [Agent Teams](https://docs.anthropic.com/en/docs/claude-code/agent-teams) — multi-agent orchestration where multiple Claude agents collaborate on a task in parallel. This requires tmux.
+
+Agent Teams is **not enabled by default**. To opt in, add these to your `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "teammateMode": "tmux"
+}
+```
+
+**Prerequisites:**
+- tmux installed (`brew install tmux` on macOS, `apt install tmux` on Linux)
+- Launch Claude Code from inside a tmux session (`tmux` or `tmux -CC` for iTerm2)
+
+**When it's useful:**
+- Cross-repo features (e.g., backend API + frontend types in parallel)
+- Multi-concern reviews (security + performance + test coverage)
+- Large refactors that split cleanly across modules
+
+**When to skip it:**
+- Single-file changes or sequential work
+- You don't use tmux
+- Sub-agents (Task tool) are sufficient for your workflow
 
 ---
 

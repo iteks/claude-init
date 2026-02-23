@@ -9,6 +9,7 @@ paths:
 
 - Shebang: `#!/bin/bash`
 - Comment header: description, install path (`# Install: .claude/hooks/...`), event type (`# Event: PreToolUse|PostToolUse`)
+- Check jq availability: `if ! command -v jq &>/dev/null; then exit 0; fi`
 - Read stdin: `INPUT=$(cat)`
 - Extract fields with `jq -r`: `FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')`
 - PreToolUse output: JSON with `permissionDecision` (deny/ask/allow) via `jq -n`
@@ -54,8 +55,3 @@ paths:
 - Each hook entry: `matcher` (tool pattern), `hooks` array with `type`, `command`, `timeout`
 - Complex stacks include `permissions.defaultMode: "plan"`
 
-## MCP Templates
-
-- JSON object with server name as key
-- `command`: typically `"npx"`, `args`: `["-y", "@anthropic/claude-code-{server}"]`
-- `env`: placeholder tokens like `YOUR_SENTRY_AUTH_TOKEN`

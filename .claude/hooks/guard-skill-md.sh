@@ -11,7 +11,7 @@ if [[ -z "$FILE_PATH" ]]; then
 fi
 
 if echo "$FILE_PATH" | grep -qE 'skills/claude-init/SKILL\.md$'; then
-  jq -n --arg reason "SKILL.md is the core pipeline (~950 lines) — confirm this edit is intentional and maintains phase numbering consistency" '{
+  jq -n --arg reason "SKILL.md is the core pipeline (~1285 lines) — confirm this edit is intentional and maintains phase numbering consistency" '{
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
       "permissionDecision": "ask",

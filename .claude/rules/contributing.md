@@ -27,7 +27,6 @@ paths:
 - CLAUDE.md templates: `{language}-{framework}.md` or `generic.md`
 - Skill templates: `new-{thing}-{framework}.md` (e.g., `new-api-endpoint-laravel.md`)
 - Command templates: `{action}.md` (e.g., `review-changes.md`, `run-tests.md`)
-- MCP templates: `{service}.json` (e.g., `sentry.json`, `github.json`)
 
 ## File Organization
 
@@ -37,9 +36,9 @@ paths:
 
 ## SKILL.md Editing Guidelines
 
-- SKILL.md is ~950 lines — read fully before editing
-- Phase numbering: 1, 2A, 2B, 2B.5, 2B.7, 2B.8, 2B.9, 2C, 3, 4, 5
-- Sub-phases within Phase 2B use decimals (2B.5, 2B.7, etc.)
+- SKILL.md is ~1285 lines — read fully before editing
+- Phase numbering: 1, 2A, 2B, 2C, 2D, 2E, 2F, 3, 4, 5
+- Phases 2C–2E handle agent/skill/plugin detection; 2F is audit mode
 - Always update the detection subagent prompt when adding new detection steps
 - Always update the template selection table when adding new outputs
 - Always update the Phase 5 report template when adding new file types
