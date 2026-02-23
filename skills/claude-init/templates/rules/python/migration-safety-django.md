@@ -1,6 +1,6 @@
 ---
 paths:
-  - "*/migrations/**"
+  - "**/migrations/**"
 ---
 
 # Migration Safety Rules

@@ -8,7 +8,7 @@
 - Language: TypeScript
 - Styling: {{STYLING}}
 - Navigation: Expo Router
-- Testing: Jest + @testing-library/react-native
+- Testing: {{TEST_FRAMEWORK}}
 - Package Manager: {{PACKAGE_MANAGER}}
 
 ## Local Development
@@ -36,7 +36,7 @@
 
 ## Conventions
 
-- **Indentation**: 2 spaces (Prettier)
+- **Indentation**: {{INDENT_STYLE}}
 - **Components**: Functional with hooks, named exports
 - **Styling**: {{STYLING_CONVENTIONS}}
 - **Navigation**: File-based routing via Expo Router

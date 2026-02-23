@@ -6,7 +6,7 @@
 
 - Python {{PYTHON_VERSION}} / Django {{DJANGO_VERSION}}
 - Database: {{DATABASE}}
-- Testing: pytest + pytest-django
+- Testing: {{TEST_FRAMEWORK}}
 - Formatting: {{FORMATTER}}
 - Package Manager: {{PACKAGE_MANAGER}}
 

@@ -40,10 +40,10 @@ describe('ComponentName', () => {
 
   describe('when user interacts', () => {
     it('handles click events', () => {
-      const onPress = jest.fn();
-      render(<ComponentName onPress={onPress} />);
-      fireEvent.press(screen.getByRole('button'));
-      expect(onPress).toHaveBeenCalledTimes(1);
+      const onClick = jest.fn();
+      render(<ComponentName onClick={onClick} />);
+      fireEvent.click(screen.getByRole('button'));
+      expect(onClick).toHaveBeenCalledTimes(1);
     });
   });
 });

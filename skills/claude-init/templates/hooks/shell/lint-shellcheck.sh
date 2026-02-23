@@ -3,6 +3,8 @@
 # Install: .claude/hooks/lint-shellcheck.sh
 # Event: PostToolUse (matcher: Write|Edit)
 
+if ! command -v jq &>/dev/null; then exit 0; fi
+
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 

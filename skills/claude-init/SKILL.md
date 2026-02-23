@@ -1,3 +1,7 @@
+---
+description: Analyze any project and generate optimal Claude Code integration
+---
+
 # Claude Init
 
 Analyze any project and generate optimal Claude Code integration — hooks, rules, agents, skills, settings, and CLAUDE.md. Works for new projects, existing projects without config, and projects with existing Claude Code setup.
@@ -28,6 +32,14 @@ If the user invoked `/claude-init update` (check if `$ARGUMENTS` contains "updat
 
 **Do not continue to Phase 1** when handling the update command. The update flow is complete after step 8.
 
+### Pre-check: `/claude-init global` Command
+
+If the user invoked `/claude-init global` (check if `$ARGUMENTS` contains "global"), run the global environment setup flow **instead of** the normal pipeline:
+
+Skip directly to the **Global Pipeline** section at the bottom of this file (Phase G1). The global pipeline configures `~/.claude/` with personal preferences, universal agents, commands, rules, and memory.
+
+**Do not continue to Phase 1** when handling the global command. The global flow is self-contained.
+
 ---
 
 ### Execution Strategy — Context Preservation
@@ -38,8 +50,9 @@ claude-init's phases involve heavy file reading (scanning lock files, reading te
 
 | Subagent | Phases | Model | Input | Output |
 |---|---|---|---|---|
-| Detection | 2B + 2B.5–2B.9 | `haiku` | Project root path | Structured stack summary + signal scan results |
+| Detection | 2B + 2C–2E | `haiku` | Project root path | Structured YAML stack summary + signal scan results |
 | Generation | 3 + 4 | `sonnet` | Stack summary + user selections + project root path | List of files created/modified |
+| Global Generation | G3 + G4 | `sonnet` | User preferences + selected categories | List of files created |
 
 **What stays in the main session** (requires user interaction or is lightweight):
 - Phase 1 — three file-existence checks
@@ -47,50 +60,141 @@ claude-init's phases involve heavy file reading (scanning lock files, reading te
 - User confirmations — stack approval, agent selection
 - Phase 5 — display the summary returned by the generation subagent
 
-**For Audit Mode (2C):** Delegate the entire audit scan + fix cycle as a single subagent. It reads existing config, produces the audit report text, and generates fixes if the user approves. The main session only handles displaying the report and collecting the user's fix/skip decision.
+**For Audit Mode (2C):** Two-step delegation. First, delegate the audit scan as a subagent that reads existing config and returns the audit report. The main session displays the report and collects the user's fix/skip decision. If fixes are approved, delegate a second generation subagent with the fix list.
+
+Audit scan subagent prompt:
+```
+Audit the existing Claude Code configuration at {path}. Follow the Phase 2F
+(Audit Mode) checklist in {skill_path}/SKILL.md.
+
+Return the audit report as structured YAML with these keys:
+
+```yaml
+version_check:
+  current: "v1.0.0"
+  latest: "v1.2.0"
+  new_capabilities: ["plugins", "commands"]
+findings:
+  - category: "hooks"
+    severity: "gap"          # gap | warning | suggestion
+    item: "guard-migration-django.sh"
+    reason: "Django project with migrations/ but no migration guard hook"
+    fix: "Create .claude/hooks/guard-migration-django.sh from template"
+  - category: "rules"
+    severity: "warning"
+    item: "testing-pest.md"
+    reason: "paths: tests/** matches no files (project uses test/)"
+    fix: "Update glob to test/**"
+summary:
+  gaps: 3
+  warnings: 1
+  suggestions: 2
+```
+
+Do not apply fixes — only report.
+```
+Use `model: "sonnet"` for the audit scan subagent.
 
 **For New Project Mode (2A):** Skip the detection subagent (the user provides the answers). Only delegate generation (Phase 3 + 4).
 
 **How to delegate:**
 
 Use `Task` with `subagent_type: "general-purpose"` and `mode: "bypassPermissions"`.
+Specify the `model` parameter per the table above: `model: "haiku"` for the Detection subagent, `model: "sonnet"` for Generation and Audit subagents.
 
 Detection subagent prompt:
 ```
 Analyze the project at {path}. Follow the detection sequence:
 1. Language detection (composer.json, package.json, pyproject.toml, go.mod, Cargo.toml)
 2. Framework detection (artisan+laravel, next.config, app.config+expo, manage.py+django, fastapi)
+2b. Version extraction — for each detected framework, extract the version from the dependency file (composer.json, package.json, pyproject.toml, requirements.txt)
 3. Test framework detection (pestphp, jest, vitest, pytest)
 4. Formatter/linter detection (duster, pint, eslint, prettier, ruff, black, gofmt, rustfmt)
+4b. Database detection — check .env for DB_CONNECTION, docker-compose.yml for database images, pyproject.toml for database drivers, settings.py for Django backends
 5. Package manager detection (bun, pnpm, yarn, npm, pipenv, poetry, uv)
 5.5. Dev command extraction — read package.json scripts, composer.json scripts, Makefile targets, Justfile recipes, Taskfile.yml tasks, pyproject.toml scripts, Procfile processes. Map to canonical slots: dev, build, test, lint, format, start, typecheck.
+5b. Styling/CSS framework detection — check for tailwind.config.*, nativewind, styled-components, @emotion/react, CSS modules, sass
 6. Convention extraction (read 2-3 source files for indent style, naming, imports)
 6b. Build & infrastructure detection — check for Makefile, Justfile, Taskfile.yml, Dockerfile/docker-compose.yml, .devcontainer/, monorepo markers (pnpm-workspace.yaml, nx.json, turbo.json, lerna.json), .editorconfig, .tool-versions/.mise.toml
 7. Signal scan (migrations, API routes, ORM models, components, CI/CD, docs, dependencies)
-7b. MCP dependency scan — check for Sentry SDK (@sentry/node, sentry-sdk, sentry/sentry-laravel), GitHub remote in .git/config, Slack SDK (@slack/web-api, @slack/bolt), Figma references (figma.com URLs in .md/source files, figma-api in deps)
-8. Plugin & command scan — check for existing .claude/commands/ directory, installed plugins (extraKnownMarketplaces or enabledPlugins in settings), and detect signals for official marketplace plugins: TypeScript (tsconfig.json), Python (pyproject.toml), PHP (composer.json), Go (go.mod), Rust (Cargo.toml) for LSP plugins; GitHub remote for github plugin; Sentry/Slack/Figma (reuse MCP signals) for integration plugins
+8. Plugin & command scan — check for existing .claude/commands/ directory, installed plugins (extraKnownMarketplaces or enabledPlugins in settings), and detect signals for official marketplace plugins: TypeScript (tsconfig.json), Python (pyproject.toml), PHP (composer.json), Go (go.mod), Rust (Cargo.toml) for LSP plugins; GitHub remote for github plugin; Sentry/Slack/Figma SDKs for integration plugins
 
-Return a structured summary:
-  Stack: Language, Framework, Test Framework, Formatter, Package Manager
-  Dev Commands: Source file, command map (dev, build, test, lint, format, start, typecheck)
-  Infrastructure: Build tools, containerization, monorepo type, editorconfig settings, version manager
-  Conventions: Indentation, Naming, Import Style
-  Signals: For each of the 7 signals, state detected/not-detected with file counts
-  MCP Signals: For each of the 4 MCP checks, state detected/not-detected with package name
-  Skill Signals: For each applicable skill template, state triggered/not-triggered with evidence
-  Plugin Signals: For each official marketplace plugin, state suggested/not-needed with reason
-  Existing Commands: List any .claude/commands/ files found
+Return the summary as structured YAML with these exact keys:
+
+```yaml
+stack:
+  language: "PHP"
+  framework: "Laravel"
+  test_framework: "Pest"
+  formatter: "Duster"
+  package_manager: "Composer"
+  database: "MySQL"
+  styling: null
+versions:
+  php: "^8.3"
+  framework: "^12.0"
+dev_commands:
+  source: "composer.json"
+  map:
+    dev: "php artisan serve"
+    test: "php artisan test"
+    lint: "./vendor/bin/duster lint"
+infrastructure:
+  build_tools: ["Makefile (12 targets)"]
+  containerization: "Docker (docker-compose.yml, 3 services)"
+  monorepo: null
+  editorconfig: { indent_style: "tab", indent_size: 4 }
+  version_manager: ".tool-versions"
+conventions:
+  indentation: "Tabs"
+  naming: "PSR-12"
+  import_style: "PSR-4 autoload"
+signals:
+  migrations: { detected: true, count: 23 }
+  api_routes: { detected: true, count: 5 }
+  orm_models: { detected: true, count: 12 }
+  components: { detected: false }
+  ci_cd: { detected: true, path: ".github/workflows/" }
+  docs: { detected: false }
+  dependencies: { detected: true, count: 45 }
+skill_signals:
+  new-api-endpoint: { triggered: true, evidence: "routes/api/ detected" }
+plugin_signals:
+  php-lsp: { suggested: true, reason: "composer.json detected" }
+existing_commands: ["review-changes.md"]
+```
 ```
 
 Generation subagent prompt:
 ```
 Generate Claude Code configuration for a {framework} project at {path}.
-Stack: {paste detection summary}
+Stack: {paste detection YAML summary}
 Accepted agents: {list from user selection}
+Accepted skills: {list from user selection}
+Accepted commands: {list from user selection}
 
 Read templates from {skill_path}/templates/ and follow the Phase 3 (Generate)
 and Phase 4 (Validate) instructions in {skill_path}/SKILL.md.
-Return a summary of every file created or modified with a one-line description each.
+
+Return the result as structured YAML:
+
+```yaml
+files_created:
+  - path: ".claude/settings.json"
+    description: "hooks, permissions, settings"
+  - path: ".claude/hooks/guard-env.sh"
+    description: "blocks .env edits"
+files_skipped:
+  - path: ".claude/agents/code-reviewer.md"
+    reason: "already exists"
+validation:
+  passed: 9
+  failed: 0
+  auto_fixed: 1
+  details:
+    - check: "hook scripts executable"
+      result: "pass"
+```
 ```
 
 ---
@@ -148,9 +252,9 @@ The project is empty or has minimal boilerplate. Prompt the user to understand t
    - Go: built-in testing
    - Rust: built-in testing
 
-**After gathering answers**, proceed to Phase 3 using the selected framework to choose templates.
+**After gathering answers**, proceed to Phase 3 using the selected framework to choose templates. If the selected framework has no dedicated template in the template selection table (e.g., SvelteKit, Rails, Astro, Flutter), use the **Other** row (generic templates) and populate the generic placeholders with the user's answers.
 
-**Before proceeding to Phase 3**, run the suggestion check from Phase 2B.5. Use the selected framework to infer which signals apply (e.g., selecting "Laravel" triggers migration-reviewer and api-reviewer suggestions). If the project has existing code, also scan the filesystem for remaining signals.
+**Before proceeding to Phase 3**, run the suggestion checks from Phases 2C, 2D, and 2E. Use the selected framework to infer which signals apply (e.g., selecting "Laravel" triggers migration-reviewer and api-reviewer suggestions). If the project has existing code, also scan the filesystem for remaining signals.
 
 ---
 
@@ -174,10 +278,29 @@ The project has source code but no Claude Code configuration. Detect the stack a
 |---|---|
 | `artisan` file + `composer.json` has `laravel/framework` | Laravel |
 | `next.config.*` OR `package.json` has `next` | Next.js |
-| `app.config.*` + `package.json` has `expo` | Expo |
+| (`app.config.*` OR `app.json`) + `package.json` has `expo` | Expo |
 | `nuxt.config.*` OR `package.json` has `nuxt` | Nuxt |
 | `manage.py` + settings with `django` | Django |
-| `package.json` has `fastapi` OR `pyproject.toml` has `fastapi` | FastAPI |
+| `pyproject.toml` has `fastapi` OR `requirements.txt` has `fastapi` | FastAPI |
+| `Gemfile` has `rails` | Rails (uses generic templates) |
+| `package.json` has `express` | Express (uses generic templates) |
+| `svelte.config.*` OR `package.json` has `@sveltejs/kit` | SvelteKit (uses generic templates) |
+
+#### Version Extraction
+
+For each detected framework, extract the version from the appropriate source:
+
+| Framework | Version Source |
+|---|---|
+| PHP | `composer.json` → `require.php` constraint, or `php -v` output |
+| Laravel | `composer.json` → `require.laravel/framework` constraint |
+| Django | `pyproject.toml` or `requirements.txt` → `django` version |
+| FastAPI | `pyproject.toml` or `requirements.txt` → `fastapi` version |
+| Next.js | `package.json` → `dependencies.next` version |
+| React | `package.json` → `dependencies.react` version |
+| Expo | `package.json` → `dependencies.expo` version |
+
+Extract the version string as-is from the dependency file (e.g., "^12.0", "~4.2", ">=3.11"). For PHP, prefer `composer.json` over CLI output.
 
 #### Test Framework Detection
 | Check | Test Framework |
@@ -187,6 +310,8 @@ The project has source code but no Claude Code configuration. Detect the stack a
 | `package.json` has `jest` | Jest |
 | `package.json` has `vitest` | Vitest |
 | `pyproject.toml` has `pytest` OR `pytest.ini` exists | pytest |
+| `go.mod` exists (Go projects use built-in testing) | Go testing |
+| `Cargo.toml` exists (Rust projects use built-in testing) | Rust testing |
 
 #### Formatter/Linter Detection
 | Check | Tool |
@@ -199,6 +324,20 @@ The project has source code but no Claude Code configuration. Detect the stack a
 | `pyproject.toml` has `black` | black |
 | Go project (any) | gofmt (built-in) |
 | Rust project (any) | rustfmt (built-in) |
+
+#### Database Detection
+| Check | Database |
+|---|---|
+| `.env` contains `DB_CONNECTION=mysql` or `DB_CONNECTION=mariadb` | MySQL/MariaDB |
+| `.env` contains `DB_CONNECTION=pgsql` | PostgreSQL |
+| `.env` contains `DB_CONNECTION=sqlite` | SQLite |
+| `docker-compose.yml` has `postgres` or `pgsql` image | PostgreSQL |
+| `docker-compose.yml` has `mysql` or `mariadb` image | MySQL/MariaDB |
+| `pyproject.toml` has `psycopg` or `asyncpg` | PostgreSQL |
+| `pyproject.toml` has `pymysql` or `aiomysql` | MySQL |
+| `settings.py` has `django.db.backends.postgresql` | PostgreSQL |
+| `settings.py` has `django.db.backends.mysql` | MySQL |
+| `settings.py` has `django.db.backends.sqlite3` | SQLite |
 
 #### Package Manager Detection
 | Check | Manager |
@@ -252,6 +391,16 @@ Extract dev commands from the following sources. For each source found, read and
 
 If the same slot maps from multiple sources, prefer `package.json` > `composer.json` > `Makefile` > others.
 
+#### Styling/CSS Framework Detection
+| Check | Styling Framework |
+|---|---|
+| `tailwind.config.*` exists OR `package.json` has `tailwindcss` | Tailwind CSS |
+| `package.json` has `nativewind` | NativeWind (Tailwind for React Native) |
+| `package.json` has `styled-components` | styled-components |
+| `package.json` has `@emotion/react` or `@emotion/styled` | Emotion |
+| `*.module.css` files exist in `src/` or `app/` | CSS Modules |
+| `package.json` has `sass` or `node-sass` | Sass/SCSS |
+
 **Convention extraction** — read a few representative source files to detect:
 - Indentation style (tabs vs spaces, how many)
 - Naming conventions (camelCase, snake_case, PascalCase)
@@ -274,11 +423,14 @@ Detected stack:
 Proceed with generating Claude Code config? [Yes / Customize / Skip]
 ```
 
-Then proceed to Phase 3.
+Handle the user's response:
+- **Yes** — proceed to Phase 3
+- **Customize** — ask which fields to override (framework, formatter, test runner, package manager), accept corrections, then proceed to Phase 3 with adjusted values
+- **Skip** — abort the pipeline. Display: "Cancelled. Run /claude-init again when ready."
 
 ---
 
-### Phase 2B.5: Suggest Additional Agents
+### Phase 2C: Suggest Additional Agents
 
 After confirming the detected stack (Phase 2B) or gathering user answers (Phase 2A), scan for structural signals that indicate additional agents beyond the core three would be useful.
 
@@ -288,7 +440,7 @@ After confirming the detected stack (Phase 2B) or gathering user answers (Phase 
 |---|---|---|---|
 | Database migrations | `database/migrations/` (Laravel), `migrations/` (Django), `prisma/migrations/`, or migration files detected | `migration-reviewer` | Template: `migration-reviewer-{framework}.md` |
 | API routes | `routes/api/` or `app/Http/Controllers/Api/` (Laravel), `app/api/` or `pages/api/` (Next.js), `routers/` (FastAPI) | `api-reviewer` | Template: `api-reviewer-{framework}.md` |
-| ORM models with relationships | 5+ model files containing relationship methods (`hasMany`, `belongsTo`, `HasOne`, `ForeignKey`, `relationship`, `references`) | `performance-reviewer` | Template: `performance-reviewer.md` |
+| ORM models with relationships | 5+ model files containing relationship methods (`hasMany`, `belongsTo`, `HasOne`, `ForeignKey`, `relationship`, `references`) | `performance-reviewer` | Template: `performance-reviewer-generic.md` |
 | Web components (10+ files) | `components/` or `src/components/` with 10+ `.tsx`/`.jsx`/`.vue`/`.blade.php` files | `accessibility-reviewer` | Dynamic (generate from blueprint) |
 | CI/CD config | `.github/workflows/`, `.circleci/`, `.gitlab-ci.yml`, `Jenkinsfile` | `ci-reviewer` | Dynamic (generate from blueprint) |
 | Sparse documentation | No `docs/` directory AND `README.md` under 20 lines (or missing) | `documentation-generator` | Dynamic (generate from blueprint) |
@@ -416,33 +568,7 @@ focus_areas:
 output_format: Table format grouped by severity (Critical/High/Medium/Low)
 ```
 
-### Phase 2B.7: Suggest MCP Servers
-
-After confirming agents, check if the project uses services that have official Anthropic MCP servers. Only suggest well-maintained official servers.
-
-**Detection Table:**
-
-| Signal | Detection Check | MCP Server |
-|---|---|---|
-| Sentry SDK | `@sentry/node` in package.json, `sentry-sdk` in pyproject.toml, `sentry/sentry-laravel` in composer.json | `@anthropic/claude-code-sentry` |
-| GitHub remote | `.git/config` contains `github.com` | `@anthropic/claude-code-github` |
-| Slack SDK | `@slack/web-api` or `@slack/bolt` in package.json | `@anthropic/claude-code-slack` |
-| Figma references | `figma.com/design/` or `figma.com/file/` in .md/source files, or `figma-api` in deps | `@anthropic/claude-code-figma` |
-
-**User interaction** — present detected MCP servers:
-
-```
-Based on your project dependencies, these MCP server integrations are available:
-
-  [1] Sentry     — Error tracking integration (sentry/sentry-laravel detected)
-  [2] GitHub     — Enhanced GitHub integration (github.com remote detected)
-
-Include MCP server configs? [All / Pick numbers / None]
-```
-
-For each accepted server, generate an `.mcp.json` entry in Phase 3. Add `.mcp.json` to the `.gitignore` suggestion list (it contains auth tokens).
-
-### Phase 2B.8: Suggest Skills
+### Phase 2D: Suggest Skills
 
 Scan for patterns that indicate custom skills would be useful. Skills are reusable workflows invoked with `/skill-name`.
 
@@ -470,7 +596,7 @@ Based on your project structure, these custom skills would be useful:
 Include suggested skills? [All / Pick numbers / None]
 ```
 
-### Phase 2B.9: Suggest Plugins & Commands
+### Phase 2E: Suggest Plugins & Commands
 
 #### Plugin Suggestions
 
@@ -525,9 +651,11 @@ Commands are always suggested (they're lightweight and universally useful). User
 
 ---
 
-### Phase 2C: Audit Mode
+### Phase 2F: Audit Mode
 
 The project already has `.claude/` configuration. Scan for gaps and improvements.
+
+**Pre-scan: Detect project stack** — Before scanning categories, run the Phase 2B detection tables (language, framework, test framework, formatter, package manager, database, styling) to establish the project's stack context. This is required because audit checks reference the detected stack (e.g., "missing hooks based on detected stack", "missing rules based on detected directories"). Store the detection results for use throughout the audit.
 
 **Scan the following categories:**
 
@@ -536,7 +664,7 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
 - Get current claude-init version: `git -C {skill_path}/../.. describe --tags --abbrev=0` (resolve `{skill_path}` from the skill's location — the repo root is two directories up from the skill)
 - If both versions are available and differ:
   - Show: `claude-init updated: {old_version} → {new_version}` (e.g., `v1.0.0 → v1.2.0`)
-  - Compute new capabilities: compare the project's `capabilities` array against the full set (`hooks`, `rules`, `agents`, `mcp`, `skills`, `commands`, `permissions`, `plugins`)
+  - Compute new capabilities: compare the project's `capabilities` array against the full set (`hooks`, `rules`, `agents`, `skills`, `commands`, `permissions`, `plugins`)
   - Missing entries = new features added since last generation
   - If new capabilities exist, list them: `New capabilities available: plugins, commands`
   - Display this at the top of the audit report, before category scans
@@ -578,7 +706,7 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
 #### 4. Agents Audit
 - Read all files in `.claude/agents/` (if directory exists)
 - **Existence checks** — verify these agents exist:
-  - All projects: `code-reviewer.md`
+  - All projects: `code-reviewer-generic.md`
   - All projects: `security-reviewer.md`
   - If test framework detected (Pest, Jest, Vitest, pytest): `test-generator.md`
 - **Quality checks** — for each existing agent, verify:
@@ -587,9 +715,9 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
   - Write-capable agents (test-generator) have `permissionMode: acceptEdits`
   - `maxTurns` is set (prevents runaway execution)
   - `description` includes invocation guidance (when/how to use the agent)
-  - Tool list is appropriate: reviewers should have `Read, Grep, Glob` only (NOT Write/Edit/Bash); test-generator should have `Read, Grep, Glob, Write, Edit, Bash`
+  - Tool list is appropriate: reviewers should have `Read, Grep, Glob` (NOT Write/Edit; Bash is allowed for git-only read operations); test-generator should have `Read, Grep, Glob, Write, Edit, Bash`
 - **Suggested agents** — check for additional agents that should exist based on detected signals:
-  - Run the detection table from Phase 2B.5 against the project
+  - Run the detection table from Phase 2C against the project
   - For each triggered signal where the corresponding agent doesn't exist in `.claude/agents/`, report it as a suggestion (not a gap — these are optional)
   - Format: `[suggested] migration-reviewer — Signal: database/migrations/ with 23 files`
 - Report quality issues alongside missing agents
@@ -599,7 +727,6 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
 - Check for **missing or incomplete settings**:
   - `permissions.defaultMode` — should be set to `"plan"` for complex stacks (Laravel, Django)
   - Hook definitions — ensure all hooks reference scripts that exist
-  - MCP server configurations (`.mcp.json`) — check if project uses any MCP servers
 - Check for `.claude/settings.local.json` — if it exists, verify it's in `.gitignore`
 - Check for permission optimizations (read-only command pre-approvals in global `~/.claude/settings.json`)
 
@@ -608,26 +735,20 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
 - Check if `.env` is in `.gitignore`
 - Check for any sensitive data patterns in `.claude/` files
 
-#### 7. MCP Audit
-- Check if `.mcp.json` exists in project root
-- If it doesn't exist, run MCP detection checks from Phase 2B.7
-- If it exists, verify it contains valid JSON and check for placeholder tokens (`YOUR_*_TOKEN`, `YOUR_*_KEY`) that haven't been replaced
-- Report: missing MCP configs for detected services, unreplaced placeholder tokens
-
-#### 8. Skills Audit
+#### 7. Skills Audit
 - Check if `.claude/skills/` directory exists
 - If it exists, verify each subdirectory contains a `SKILL.md` file
-- Run skill detection checks from Phase 2B.8 against the project
+- Run skill detection checks from Phase 2D against the project
 - For each triggered signal where no corresponding skill exists, report as suggestion
 - Report: skills with missing SKILL.md, suggested skills for detected signals
 
-#### 9. Commands Audit
+#### 8. Commands Audit
 - Check if `.claude/commands/` directory exists
 - If it exists, list existing commands
 - Check for missing common commands: `review-changes` (always useful), `run-tests` (if test framework detected), `dev` (if dev command detected)
 - Report: missing commands for detected capabilities
 
-#### 10. Permissions Audit
+#### 9. Permissions Audit
 - Read `.claude/settings.json` for `permissions.allow` and `permissions.deny` arrays
 - Check for missing permission patterns based on detected tools:
   - Test framework detected but no test command pre-approved
@@ -640,8 +761,8 @@ The project already has `.claude/` configuration. Scan for gaps and improvements
   - Django: `Bash(python manage.py flush*)` should be denied
 - Report: missing allow patterns, missing deny patterns
 
-#### 11. Plugin Audit
-- Run plugin detection from Phase 2B.9 against the project
+#### 10. Plugin Audit
+- Run plugin detection from Phase 2E against the project
 - Check if `extraKnownMarketplaces` or `enabledPlugins` exist in `.claude/settings.json`
 - For each detected language without a corresponding LSP plugin suggestion, note it
 - For each detected integration (GitHub, Sentry, etc.) without a plugin, note it
@@ -675,10 +796,6 @@ Settings
   [checkmark] [setting description]
   [x] Missing: [missing setting] ([reason])
   [warning] settings.local.json not in .gitignore
-
-MCP Servers
-  [checkmark] .mcp.json configured with [N] servers
-  [x] Missing: Sentry MCP (sentry/sentry-laravel detected in composer.json)
 
 Skills
   [checkmark] /new-api-endpoint skill exists
@@ -714,14 +831,15 @@ Templates are located at `./templates/` relative to this SKILL.md file. Read the
 
 | Stack | Settings | Hooks | Rules | CLAUDE.md | Agents | Suggested Agents |
 |---|---|---|---|---|---|---|
-| PHP/Laravel | `php-laravel.json` | `universal/*`, `php/format-php.sh` | `php/*` | `php-laravel.md` | `code-reviewer.md`, `security-reviewer-php.md`, `test-generator-pest.md` (if Pest detected) | `migration-reviewer-laravel.md`, `api-reviewer-laravel.md`, `performance-reviewer.md` (conditional on signals) |
-| JS/Next.js | `js-nextjs.json` | `universal/*`, `javascript/*` | `javascript/*` | `js-nextjs.md` | `code-reviewer.md`, `security-reviewer-js.md`, `test-generator-jest.md` or `test-generator-vitest.md` (if detected) | `api-reviewer-generic.md`, `performance-reviewer.md` (conditional on signals) |
-| JS/Expo | `js-expo.json` | `universal/*`, `javascript/*` | `javascript/*` | `js-expo.md` | `code-reviewer.md`, `security-reviewer-js.md`, `test-generator-jest.md` (if Jest detected) | `api-reviewer-generic.md`, `performance-reviewer.md` (conditional on signals) |
-| Python/Django | `python-django.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-django.md` | `code-reviewer.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) | `migration-reviewer-django.md`, `api-reviewer-generic.md`, `performance-reviewer.md` (conditional on signals) |
-| Python/FastAPI | `python-fastapi.json` | `universal/*`, `python/format-python.sh` | `python/*` | `python-fastapi.md` | `code-reviewer.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) | `api-reviewer-generic.md`, `performance-reviewer.md` (conditional on signals) |
-| Go | `generic.json` | `universal/*`, `go/format-go.sh` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` | `performance-reviewer.md` (conditional on signals) |
-| Rust | `generic.json` | `universal/*`, `rust/format-rust.sh` | — | `generic.md` | `code-reviewer.md`, `security-reviewer-generic.md` | `performance-reviewer.md` (conditional on signals) |
-| Other | `generic.json` + permissions | `universal/*`, `shell/lint-shellcheck.sh` (if shell project) | — | `generic.md` (with populated dev commands) | `code-reviewer.md`, `security-reviewer-generic.md` | (conditional on signals) |
+| PHP/Laravel | `php-laravel.json` | `universal/*`, `php/format-php.sh` | `php/*` | `php-laravel.md` | `code-reviewer-generic.md`, `security-reviewer-php.md`, `test-generator-pest.md` (if Pest detected) | `migration-reviewer-laravel.md`, `api-reviewer-laravel.md`, `performance-reviewer-generic.md` (conditional on signals) |
+| JS/Next.js | `js-nextjs.json` | `universal/*`, `javascript/*` | `javascript/component-conventions-react.md`, `javascript/testing-jest.md` or `javascript/testing-vitest.md` (match detected test framework) | `js-nextjs.md` | `code-reviewer-generic.md`, `security-reviewer-js.md`, `test-generator-jest.md` or `test-generator-vitest.md` (if detected) | `api-reviewer-generic.md`, `performance-reviewer-generic.md` (conditional on signals) |
+| JS/Expo | `js-expo.json` | `universal/*`, `javascript/*` | `javascript/component-conventions-react.md`, `javascript/testing-jest.md` or `javascript/testing-vitest.md` (match detected test framework) | `js-expo.md` | `code-reviewer-generic.md`, `security-reviewer-js.md`, `test-generator-jest.md` (if Jest detected) | `api-reviewer-generic.md`, `performance-reviewer-generic.md` (conditional on signals) |
+| Python/Django | `python-django.json` | `universal/*`, `python/format-python.sh`, `python/guard-migration-django.sh` | `python/testing-pytest.md`, `python/migration-safety-django.md` | `python-django.md` | `code-reviewer-generic.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) | `migration-reviewer-django.md`, `api-reviewer-generic.md`, `performance-reviewer-generic.md` (conditional on signals) |
+| Python/FastAPI | `python-fastapi.json` | `universal/*`, `python/format-python.sh` | `python/testing-pytest.md`, `python/api-conventions-fastapi.md` | `python-fastapi.md` | `code-reviewer-generic.md`, `security-reviewer-python.md`, `test-generator-pytest.md` (if pytest detected) | `api-reviewer-generic.md`, `performance-reviewer-generic.md` (conditional on signals) |
+| JS/Nuxt | `generic.json` | `universal/*`, `javascript/*` | `javascript/component-conventions-react.md`, `javascript/testing-jest.md` or `javascript/testing-vitest.md` (match detected test framework) | `generic.md` | `code-reviewer-generic.md`, `security-reviewer-js.md`, `test-generator-jest.md` or `test-generator-vitest.md` (if detected) | `api-reviewer-generic.md`, `performance-reviewer-generic.md` (conditional on signals) |
+| Go | `go.json` | `universal/*`, `go/format-go.sh` | — | `generic.md` | `code-reviewer-generic.md`, `security-reviewer-generic.md` | `performance-reviewer-generic.md` (conditional on signals) |
+| Rust | `rust.json` | `universal/*`, `rust/format-rust.sh` | — | `generic.md` | `code-reviewer-generic.md`, `security-reviewer-generic.md` | `performance-reviewer-generic.md` (conditional on signals) |
+| Other | `shell.json` (if shell project), `generic.json` + permissions (otherwise) | `universal/*`, `shell/lint-shellcheck.sh` (if shell project) | — | `generic.md` (with populated dev commands) | `code-reviewer-generic.md`, `security-reviewer-generic.md` | (conditional on signals) |
 
 #### File Generation
 
@@ -750,9 +868,13 @@ Create these files in the project (skip any that already exist in merge mode):
 | Pkg: composer | `Bash(composer install*)`, `Bash(composer require*)` |
 | Pkg: poetry | `Bash(poetry install*)`, `Bash(poetry run *)` |
 | Pkg: pip/uv | `Bash(pip install*)`, `Bash(uv pip install*)` |
+| Pkg: bun | `Bash(bun install*)`, `Bash(bun run *)` |
+| Pkg: pnpm | `Bash(pnpm install*)`, `Bash(pnpm run *)` |
+| Pkg: yarn | `Bash(yarn install*)`, `Bash(yarn run *)`, `Bash(yarn add*)` |
+| Pkg: pipenv | `Bash(pipenv install*)`, `Bash(pipenv run *)` |
 | Framework: Laravel | `Bash(php artisan route:list*)`, `Bash(php artisan make:*)`, `Bash(php artisan tinker*)` |
 | Framework: Django | `Bash(python manage.py shell*)`, `Bash(python manage.py check*)`, `Bash(python manage.py showmigrations*)` |
-| Dev commands (Gap 5) | For each detected dev command, add `Bash({command}*)` |
+| Dev commands | For each detected dev command, add `Bash({command}*)` |
 
 Deny patterns:
 
@@ -760,7 +882,7 @@ Deny patterns:
 |---|---|
 | Any | `Bash(rm -rf *)` |
 | Laravel | `Bash(php artisan migrate:fresh*)`, `Bash(php artisan migrate:reset*)` |
-| Django | `Bash(python manage.py flush*)` |
+| Django | `Bash(python manage.py flush*)`, `Bash(python manage.py migrate*--fake*)` |
 
 Merge these into the settings template's `permissions` object. Example output structure:
 
@@ -798,7 +920,7 @@ Merge these into the settings template's `permissions` object. Example output st
 
 Generate the following agents:
 
-- **Always**: Copy `code-reviewer.md` (universal, works for all stacks)
+- **Always**: Copy `code-reviewer-generic.md` (universal, works for all stacks)
 - **Always**: Copy the security-reviewer agent for the detected stack (`security-reviewer-php.md`, `security-reviewer-js.md`, `security-reviewer-python.md`, or `security-reviewer-generic.md`)
 - **Conditionally**: If a test framework was detected in Phase 2B, copy the matching test-generator agent:
   - Pest detected → `test-generator-pest.md`
@@ -806,9 +928,9 @@ Generate the following agents:
   - Vitest detected → `test-generator-vitest.md`
   - pytest detected → `test-generator-pytest.md`
   - No test framework detected → skip test-generator
-- **Suggested agents** (from Phase 2B.5): For each accepted suggestion:
+- **Suggested agents** (from Phase 2C): For each accepted suggestion:
   - **Template agents** (migration-reviewer, api-reviewer, performance-reviewer): Copy the appropriate template from `templates/agents/` just like core agents. Select the framework-specific variant (e.g., `migration-reviewer-laravel.md` for Laravel, `migration-reviewer-generic.md` as fallback).
-  - **Dynamic agents** (accessibility-reviewer, ci-reviewer, documentation-generator, dependency-analyzer): Generate the full agent markdown using the blueprint from Phase 2B.5. Write YAML frontmatter exactly as specified in the blueprint, then generate review instructions, categories, output format, and guidelines sections following the same structure as template agents.
+  - **Dynamic agents** (accessibility-reviewer, ci-reviewer, documentation-generator, dependency-analyzer): Generate the full agent markdown using the blueprint from Phase 2C. Write YAML frontmatter exactly as specified in the blueprint, then generate review instructions, categories, output format, and guidelines sections following the same structure as template agents.
 
 **5. `CLAUDE.md`**
 - Read the template for the detected stack
@@ -820,18 +942,22 @@ Generate the following agents:
   - `{{NEXTJS_VERSION}}`, `{{REACT_VERSION}}`, `{{EXPO_VERSION}}` — from detected JS framework versions
   - `{{DEV_URL}}`, `{{DEV_COMMAND}}` — from project config or common defaults
   - `{{BUILD_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TYPECHECK_COMMAND}}` — from dev command detection
-  - `{{FORMATTER}}`, `{{FORMATTER_COMMAND}}` — from detected formatter
+  - `{{FORMATTER}}` — display name of the formatter (e.g., "Duster", "Pint", "Prettier", "ruff"). Use in prose text, NOT in commands.
+  - `{{FORMATTER_COMMAND}}` — the formatter binary + default subcommand/flags (e.g., "duster lint", "pint --test", "prettier --check .", "ruff check"). Includes everything after the path prefix. Use in command contexts like `./vendor/bin/{{FORMATTER_COMMAND}}` or `npx {{FORMATTER_COMMAND}}` — do NOT append extra subcommands since they're already included.
+  - `{{FORMAT_COMMAND}}` — the full project-level format command from dev command detection (e.g., "npm run format", "./vendor/bin/duster fix"). Use in `{{DEV_INSTRUCTIONS}}` lists.
   - `{{DATABASE}}` — from detected database (MySQL, PostgreSQL, SQLite, etc.)
   - `{{PACKAGE_MANAGER}}` — from detected package manager (npm, pnpm, bun, poetry, etc.)
   - `{{STYLING}}`, `{{STYLING_CONVENTIONS}}` — from detected CSS/styling framework
-  - `{{INDENT_STYLE}}` — from .editorconfig or source file analysis
+  - `{{INDENT_STYLE}}` — from .editorconfig or source file analysis (e.g., "Tabs (enforced by Duster)", "2 spaces (Prettier)")
+  - `{{TEST_FRAMEWORK}}` — from detected test framework (e.g., "Pest", "PHPUnit", "Jest", "Vitest", "pytest + pytest-django", "pytest + httpx")
+  - `{{TEST_COMMAND}}` — from detected test command (e.g., "php artisan test --compact", "npx jest", "pytest")
   - `{{PROJECT_SLUG}}` — URL-safe project name (lowercase, hyphens)
   - `{{ARCHITECTURE_NOTES}}` — from reading source code structure
   - `{{CONVENTIONS}}` — from detected coding conventions
   - `{{STACK_DESCRIPTION}}` — combined language + framework + infrastructure summary
   - `{{DIRECTORY_TABLE}}` — markdown table of key directories and their purpose
   - `{{WATCH_ITEMS}}` — project-specific "Things to Watch For" items
-- If dev commands were detected (Gap 5), use them for placeholder replacement:
+- If dev commands were detected, use them for placeholder replacement:
   - `{{DEV_COMMAND}}` — use the detected `dev` or `start` command instead of framework defaults
   - `{{TEST_COMMAND}}` — use the detected `test` command
   - `{{FORMAT_COMMAND}}` — use the detected `format` or `lint` command
@@ -845,7 +971,8 @@ Generate the following agents:
     - **Typecheck**: `npm run typecheck`
     ```
   - For the generic template, detected commands replace the raw `{{DEV_INSTRUCTIONS}}` placeholder entirely, producing useful content instead of empty placeholders
-- If infrastructure was detected (Gap 2), include it in `{{STACK_DESCRIPTION}}`:
+  - If NO dev commands were detected, replace `{{DEV_INSTRUCTIONS}}` with: `Refer to the project README for development setup instructions.`
+- If infrastructure was detected, include it in `{{STACK_DESCRIPTION}}`:
   - Append containerization info: "Docker (docker-compose.yml with 3 services)"
   - Append build tool info: "Makefile (12 targets)"
   - Append monorepo info: "pnpm workspace (4 packages)"
@@ -857,53 +984,33 @@ Generate the following agents:
 - If `.gitignore` exists, check if it contains `.claude/settings.local.json`
 - If not, suggest adding it (don't modify .gitignore without confirmation)
 
-**7. `.mcp.json`** (if MCP servers were accepted in Phase 2B.7)
-- Read the MCP config templates from `templates/mcp/` for each accepted server
-- Combine them into a single `.mcp.json` file at the project root
-- Each server entry uses placeholder tokens (e.g., `YOUR_SENTRY_AUTH_TOKEN`) that the user must fill in
-- Structure:
-
-```json
-{
-  "mcpServers": {
-    "sentry": {
-      "command": "npx",
-      "args": ["-y", "@anthropic/claude-code-sentry"],
-      "env": {
-        "SENTRY_AUTH_TOKEN": "YOUR_SENTRY_AUTH_TOKEN",
-        "SENTRY_ORG": "YOUR_SENTRY_ORG",
-        "SENTRY_PROJECT": "YOUR_SENTRY_PROJECT"
-      }
-    }
-  }
-}
-```
-
-- Add `.mcp.json` to the `.gitignore` suggestion list (alongside `settings.local.json`)
-
-**8. `.claude/skills/` directory** (if skills were accepted in Phase 2B.8)
+**7. `.claude/skills/` directory** (if skills were accepted in Phase 2D)
 - For each accepted skill, create `.claude/skills/{skill-name}/SKILL.md`
 - Read the skill template from `templates/skills/` for the detected framework
-- Replace placeholders with detected values:
+- Replace generation-time placeholders with detected values:
   - `{{TEST_FRAMEWORK}}` — detected test framework name
   - `{{TEST_COMMAND}}` — detected test command
-  - `{{FRAMEWORK}}` — detected framework name
-  - `{{LANGUAGE}}` — detected language
+  - `{{FORMATTER_COMMAND}}` — detected formatter command
+  - `{{LINT_COMMAND}}` — detected lint command
+  - `{{TYPECHECK_COMMAND}}` — detected typecheck command
+- Leave runtime placeholders intact (replaced when the user invokes the skill):
+  - `{{RESOURCE_NAME}}`, `{{RESOURCE_PLURAL}}` — derived from `$ARGUMENTS`
+  - `{{COMPONENT_DIR}}` — resolved by the skill at invocation time
+  - `{{APP_CONFIG_NAME}}` — derived from `$ARGUMENTS`
 - Each skill SKILL.md should include frontmatter with `description` and the skill workflow
 
-**9. `.claude/commands/` directory** (if commands were accepted in Phase 2B.9)
+**8. `.claude/commands/` directory** (if commands were accepted in Phase 2E)
 - For each accepted command, create `.claude/commands/{command-name}.md`
 - Read the command template from `templates/commands/`
 - Replace placeholders with detected values:
   - `{{TEST_COMMAND}}` — from dev command detection
   - `{{DEV_COMMAND}}` — from dev command detection
-  - `{{REVIEW_SCOPE}}` — default to "uncommitted changes"
 - Commands are simple markdown files with a description and prompt text
 
-**10. `.claude/.claude-init-version`**
+**9. `.claude/.claude-init-version`**
 - Get claude-init version: `git -C {skill_path}/../.. describe --tags --abbrev=0` (resolve `{skill_path}` from the skill's location — the repo root is two directories up from the skill)
-- Build the `capabilities` array from what was actually generated in this run (e.g., if hooks were created, include `"hooks"`; if MCP was declined, omit `"mcp"`)
-- Known capability keys: `hooks`, `rules`, `agents`, `mcp`, `skills`, `commands`, `permissions`, `plugins`
+- Build the `capabilities` array from what was actually generated in this run (e.g., if hooks were created, include `"hooks"`; if skills were declined, omit `"skills"`)
+- Known capability keys: `hooks`, `rules`, `agents`, `skills`, `commands`, `permissions`, `plugins`
 - Write JSON file:
   ```json
   {
@@ -914,7 +1021,7 @@ Generate the following agents:
   ```
   Example: `"version": "v1.2.0"` (semver tag, not a commit hash)
 - In merge mode: **ALWAYS overwrite** this file (unlike other config files) — it must reflect the current tool version
-- Add `.claude-init-version` to the `.gitignore` suggestion list (version stamp is machine-specific)
+- Suggest adding `.claude-init-version` to `.gitignore` (it tracks the generating tool version, not project config)
 
 #### Merge Mode Behavior (Audit fixes)
 
@@ -939,10 +1046,9 @@ After generating all files, validate:
 4. **CLAUDE.md line count**: Verify under 300 lines
 5. **No duplicate hooks**: Check settings.json doesn't have duplicate hook entries
 6. **Hook scripts exist**: Every script referenced in settings.json exists on disk
-7. **MCP config is valid**: If `.mcp.json` was generated, verify it parses as valid JSON and contains placeholder tokens
-8. **Skills have SKILL.md**: For each generated skill directory, verify it contains a non-empty `SKILL.md`
-9. **Commands are valid**: For each generated command, verify the `.md` file exists and is non-empty
-10. **Permissions are consistent**: Verify `permissions.allow` patterns don't conflict with `permissions.deny` patterns
+7. **Skills have SKILL.md**: For each generated skill directory, verify it contains a non-empty `SKILL.md`
+8. **Commands are valid**: For each generated command, verify the `.md` file exists and is non-empty
+9. **Permissions are consistent**: Verify `permissions.allow` patterns don't conflict with `permissions.deny` patterns
 
 Fix any validation errors automatically.
 
@@ -971,8 +1077,6 @@ Project config created:
     test-generator.md         — Pest test generation agent
     migration-reviewer.md     — migration safety review agent (suggested)
     api-reviewer.md           — API consistency review agent (suggested)
-  .mcp.json                   — MCP server configs (Sentry, GitHub)
-    ⚠ Replace placeholder tokens before use — see setup instructions below
   .claude/skills/
     new-api-endpoint/SKILL.md — guided API endpoint creation (/new-api-endpoint)
     new-test-suite/SKILL.md   — test scaffold workflow (/new-test-suite)
@@ -988,14 +1092,10 @@ Next steps:
   2. Add project-specific conventions to CLAUDE.md
   3. Try your new commands: /review-changes, /run-tests, /dev
   4. Run: git add .claude/ CLAUDE.md && git commit -m "Add Claude Code configuration"
-  5. Configure MCP servers:
-     - Open .mcp.json and replace placeholder tokens
-     - Sentry: Get auth token from https://sentry.io/settings/auth-tokens/
-     - GitHub: Uses gh CLI auth (run `gh auth login` if needed)
-  6. Install suggested plugins:
+  5. Install suggested plugins:
      /plugin install typescript-lsp@claude-plugins-official
      /plugin install github@claude-plugins-official
-  7. Try your new skills: /new-api-endpoint BookingController
+  6. Try your new skills: /new-api-endpoint BookingController
 ```
 
 If in audit mode, also show what was fixed vs. what was skipped.
@@ -1005,7 +1105,245 @@ If in audit mode, also show what was fixed vs. what was skipped.
 ## Important Notes
 
 - This skill generates configuration that makes Claude Code work better with the project. It does NOT modify source code.
-- All generated hooks use `jq` for JSON processing — this is a standard tool available on most systems.
+- All generated hooks use `jq` for JSON processing — ensure `jq` is installed on the system.
 - The Workflow Automation section in CLAUDE.md is critical — it teaches Claude when to plan, when to review, and when to suggest context management. Always include it.
 - Templates are starting points. Encourage the user to customize after generation.
 - For monorepos, detect the project structure and adjust paths accordingly (e.g., `laravel/` subdirectory for Laravel projects within a monorepo).
+
+---
+
+## Global Pipeline — `/claude-init global`
+
+This pipeline configures the user's global `~/.claude/` environment with personal preferences, universal agents, commands, rules, and memory. It is completely independent of the project pipeline above.
+
+### Phase G1: Detect Global State
+
+Check for existing global configuration:
+
+1. `~/.claude/CLAUDE.md` — global preferences file
+2. `~/.claude/agents/*.md` — global agent definitions
+3. `~/.claude/commands/*.md` — global slash commands
+4. `~/.claude/rules/*.md` — global rules
+5. `~/.claude/memory/MEMORY.md` — persistent memory
+6. `~/.claude/skills/` — installed skills (beyond claude-init itself)
+
+**Mode selection:**
+
+| Condition | Mode |
+|---|---|
+| 3+ of the above categories are populated | **Audit Mode** (G2-Audit) |
+| Fewer than 3 categories populated | **Setup Mode** (G2) |
+
+Announce which mode you're entering and what was detected.
+
+---
+
+### Phase G2: User Preferences (Setup Mode)
+
+Gather personal preferences using `AskUserQuestion`. These shape the global CLAUDE.md and determine which categories to generate.
+
+**Question 1 — Coding style:**
+- Options: Functional, Object-oriented, Pragmatic, No preference
+- Header: "Style"
+- "No preference" → produces neutral defaults
+
+**Question 2 — Communication tone:**
+- Options: Concise (terse, minimal), Balanced (clear, moderate detail), Detailed (thorough explanations), No preference
+- Header: "Tone"
+
+**Question 3 — Default indentation:**
+- Options: 2 spaces, 4 spaces, Tabs, Follow project
+- Header: "Indent"
+
+**Question 4 — Git workflow** (multi-select):
+- Options: Conventional commits, Never auto-commit, Always branch, Prefer rebase
+- Header: "Git"
+- multiSelect: true
+
+**Question 5 — Tool preferences** (free text via "Other" option):
+- Options: No specific preferences, Other
+- Header: "Tools"
+- This captures things like "always use bun", "prefer pnpm", "use vim keybindings"
+
+**Question 6 — Categories to generate** (multi-select):
+- Options: Global CLAUDE.md (Recommended), Universal agents, Universal commands, Universal rules
+- Header: "Categories"
+- multiSelect: true
+- Memory bootstrap is always included (lightweight)
+
+For each "No preference" answer, the corresponding CLAUDE.md section uses a neutral default or is omitted.
+
+**Placeholder mapping** — map answers to template placeholders:
+
+| Placeholder | Source | "No preference" default |
+|---|---|---|
+| `{{CODING_STYLE}}` | Q1 | "Follow the conventions of each project. No global style preference." |
+| `{{COMMUNICATION_TONE}}` | Q2 | "Adapt to the context. Be concise for simple tasks, detailed for complex ones." |
+| `{{INDENT_PREFERENCE}}` | Q3 | "Follow each project's conventions. If no project convention exists, use 2 spaces." |
+| `{{GIT_CONVENTIONS}}` | Q4 | "Follow each project's git conventions." |
+| `{{TOOL_PREFERENCES}}` | Q5 | "No global tool preferences. Use whatever each project specifies." |
+
+**Style answer expansions:**
+
+| Answer | Replacement text |
+|---|---|
+| Functional | "Prefer functional patterns: pure functions, immutability, composition over inheritance, declarative over imperative." |
+| Object-oriented | "Prefer OOP patterns: classes with clear responsibilities, encapsulation, composition, and well-defined interfaces." |
+| Pragmatic | "Use whichever paradigm fits best. Prefer simplicity and readability over strict paradigm adherence." |
+
+**Tone answer expansions:**
+
+| Answer | Replacement text |
+|---|---|
+| Concise | "Be terse. Short answers, minimal explanation. Only elaborate when asked." |
+| Balanced | "Be clear and moderately detailed. Explain the 'why' for non-obvious decisions." |
+| Detailed | "Be thorough. Explain reasoning, trade-offs, and alternatives. Include context for decisions." |
+
+**Indent answer expansions:**
+
+| Answer | Replacement text |
+|---|---|
+| 2 spaces | "Default to 2 spaces for indentation when no project convention exists." |
+| 4 spaces | "Default to 4 spaces for indentation when no project convention exists." |
+| Tabs | "Default to tabs for indentation when no project convention exists." |
+| Follow project | "Follow each project's conventions. If no project convention exists, use 2 spaces." |
+
+**Git answer expansions** (combine selected options):
+
+| Answer | Appended text |
+|---|---|
+| Conventional commits | "Use conventional commit format (feat:, fix:, chore:, etc.)." |
+| Never auto-commit | "Never create git commits automatically. Always ask before committing." |
+| Always branch | "Always work on a feature branch, never commit directly to main/master." |
+| Prefer rebase | "Prefer rebase over merge for integrating changes. Keep history linear." |
+
+---
+
+### Phase G2-Audit: Audit Global State (Audit Mode)
+
+Scan each category for gaps against the template inventory.
+
+**Audit checks:**
+
+1. **CLAUDE.md** — Does `~/.claude/CLAUDE.md` exist? If yes, is it under 80 lines? Does it have a Workflow Automation section?
+2. **Agents** — Check for `git-assistant.md`, `quick-reviewer.md`, `research-assistant.md` in `~/.claude/agents/`. Verify frontmatter has required fields.
+3. **Commands** — Check for `commit.md`, `pr.md`, `morning-standup.md` in `~/.claude/commands/`. Verify frontmatter has `description`.
+4. **Rules** — Check for `git-safety.md`, `file-safety.md` in `~/.claude/rules/`. Verify `paths: ["**"]`.
+5. **Memory** — Check for `~/.claude/memory/MEMORY.md`.
+
+**Report format:**
+
+```
+Global Environment Audit — ~/.claude/
+
+CLAUDE.md
+  [checkmark] Exists (N lines)  OR  [x] Missing
+  [checkmark] Under 80 lines  OR  [warning] N lines — consider trimming
+
+Agents
+  [checkmark] git-assistant
+  [x] Missing: quick-reviewer
+  [x] Missing: research-assistant
+
+Commands
+  [checkmark] commit
+  [x] Missing: pr
+  [x] Missing: morning-standup
+
+Rules
+  [checkmark] git-safety
+  [checkmark] file-safety
+
+Memory
+  [checkmark] MEMORY.md exists
+
+Fix gaps? [All / Pick individually / Skip]
+```
+
+If the user chooses to fix, proceed to Phase G3 for the missing items only. Existing files are never overwritten.
+
+---
+
+### Phase G3: Generate Global Configuration
+
+**Delegate this phase to a subagent** using `Task` with `subagent_type: "general-purpose"`, `model: "sonnet"`, and `mode: "bypassPermissions"`.
+
+Subagent prompt:
+```
+Generate global Claude Code configuration at ~/.claude/.
+User preferences: {paste Q1-Q5 answers}
+Selected categories: {paste Q6 selections}
+Template path: {skill_path}/templates/global/
+
+For each selected category:
+1. Read the template from templates/global/{category}/
+2. Replace {{PLACEHOLDER}} markers with the user's preference text
+3. Write to ~/.claude/{appropriate path}
+4. NEVER overwrite files that already exist — skip and report as "already configured"
+
+Categories:
+- Global CLAUDE.md → Read templates/global/claude-md/global.md, replace placeholders, write to ~/.claude/CLAUDE.md
+- Universal agents → Copy templates/global/agents/*.md to ~/.claude/agents/
+- Universal commands → Copy templates/global/commands/*.md to ~/.claude/commands/
+- Universal rules → Copy templates/global/rules/*.md to ~/.claude/rules/
+- Memory bootstrap → Copy templates/global/memory/MEMORY.md to ~/.claude/memory/MEMORY.md (create directory if needed)
+
+After generation, run Phase G4 validation and return a summary of every file created or skipped.
+```
+
+**Non-overwrite guarantee**: The subagent must check if each target file exists before writing. If it exists, skip it and include it in the report as "already configured". This is critical — users may have customized their global config.
+
+---
+
+### Phase G4: Validate
+
+After generating files, validate:
+
+1. **Global CLAUDE.md under 80 lines** — shorter than project CLAUDE.md because it loads into every session
+2. **Agent files have valid frontmatter** — check for `name`, `description`, `model`, `color`, `tools`, `permissionMode`, `maxTurns`, `memory`
+3. **Command files have valid frontmatter** — check for `description`
+4. **Rule files have valid frontmatter** — check for `paths: ["**"]`
+5. **No existing files overwritten** — verify the generation log shows skips for pre-existing files
+6. **Memory directory exists** — `~/.claude/memory/` was created if needed
+
+Fix any validation errors automatically.
+
+---
+
+### Phase G5: Report
+
+Output a summary of everything created:
+
+```
+Global Claude Code environment configured — ~/.claude/
+
+Files created:
+  ~/.claude/CLAUDE.md                  — personal preferences + workflow automation (N lines)
+  ~/.claude/agents/
+    git-assistant.md                   — git workflow helper (rebase, conflicts, branches)
+    quick-reviewer.md                  — lightweight universal code review
+    research-assistant.md              — web research + docs lookup
+  ~/.claude/commands/
+    commit.md                          — smart commit message generation (/commit)
+    pr.md                              — PR creation with auto-generated body (/pr)
+    morning-standup.md                 — cross-repo activity summary (/morning-standup)
+  ~/.claude/rules/
+    git-safety.md                      — never commit .env, no force-push main
+    file-safety.md                     — never delete without confirmation
+  ~/.claude/memory/
+    MEMORY.md                          — starter memory template
+
+[If any files skipped:]
+Already configured (not modified):
+  ~/.claude/agents/git-assistant.md    — already exists
+
+Next steps:
+  1. Review ~/.claude/CLAUDE.md and adjust preferences
+  2. Start using your new commands: /commit, /pr, /morning-standup
+  3. Try your global agents: "quick review" or "help me with git"
+  4. Add notes to ~/.claude/memory/MEMORY.md as you work
+  5. Run /claude-init in a project to set up project-specific config
+     (project config overrides global preferences)
+```
+
+If in audit mode, also show what was fixed vs. what was skipped.

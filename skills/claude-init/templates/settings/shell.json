@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/format-python.sh",
+            "command": ".claude/hooks/lint-shellcheck.sh",
             "timeout": 30
           }
         ]
@@ -29,11 +29,6 @@
       {
         "matcher": "Bash",
         "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/guard-migration-django.sh",
-            "timeout": 5
-          },
           {
             "type": "command",
             "command": ".claude/hooks/guard-git-push.sh",

@@ -4,6 +4,8 @@
 # Event: PostToolUse (matcher: Write|Edit)
 # Supports: ruff (preferred) or black
 
+if ! command -v jq &>/dev/null; then exit 0; fi
+
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
@@ -20,7 +22,7 @@ if command -v ruff &>/dev/null; then
   FIX_EXIT=$?
   LINT_OUTPUT=$(ruff check --fix "$FILE_PATH" 2>&1)
   if [[ $? -ne 0 ]]; then
-    FIX_OUTPUT="$FIX_OUTPUT\n$LINT_OUTPUT"
+    FIX_OUTPUT="$FIX_OUTPUT"$'\n'"$LINT_OUTPUT"
     FIX_EXIT=1
   fi
 elif command -v black &>/dev/null; then

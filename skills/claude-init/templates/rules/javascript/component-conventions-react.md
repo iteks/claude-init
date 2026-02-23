@@ -2,7 +2,7 @@
 paths:
   - "src/components/**"
   - "components/**"
-  - "app/**/*.tsx"
+  - "app/**/components/**"
 ---
 
 # React Component Conventions

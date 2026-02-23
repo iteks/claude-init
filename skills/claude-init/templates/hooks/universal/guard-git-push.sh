@@ -3,6 +3,8 @@
 # Install: .claude/hooks/guard-git-push.sh
 # Event: PreToolUse (matcher: Bash)
 
+if ! command -v jq &>/dev/null; then exit 0; fi
+
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 

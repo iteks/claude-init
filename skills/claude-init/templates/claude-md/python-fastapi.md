@@ -6,7 +6,7 @@
 
 - Python {{PYTHON_VERSION}} / FastAPI {{FASTAPI_VERSION}}
 - Database: {{DATABASE}}
-- Testing: pytest + httpx
+- Testing: {{TEST_FRAMEWORK}}
 - Formatting: {{FORMATTER}}
 - Package Manager: {{PACKAGE_MANAGER}}
 

@@ -1,9 +1,0 @@
-{
-  "figma": {
-    "command": "npx",
-    "args": ["-y", "@anthropic/claude-code-figma"],
-    "env": {
-      "FIGMA_ACCESS_TOKEN": "YOUR_FIGMA_ACCESS_TOKEN"
-    }
-  }
-}

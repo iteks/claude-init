@@ -7,6 +7,8 @@ paths:
   - "**/*.test.jsx"
   - "**/*.spec.ts"
   - "**/*.spec.tsx"
+  - "**/*.spec.js"
+  - "**/*.spec.jsx"
 ---
 
 # Jest Testing Conventions

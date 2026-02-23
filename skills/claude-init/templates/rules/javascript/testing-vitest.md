@@ -3,8 +3,12 @@ paths:
   - "**/__tests__/**"
   - "**/*.test.ts"
   - "**/*.test.tsx"
+  - "**/*.test.js"
+  - "**/*.test.jsx"
   - "**/*.spec.ts"
   - "**/*.spec.tsx"
+  - "**/*.spec.js"
+  - "**/*.spec.jsx"
 ---
 
 # Vitest Testing Conventions

@@ -5,6 +5,8 @@
 # Prevents migrate:fresh and migrate:reset on the primary database
 # Allows --database=testing for test databases
 
+if ! command -v jq &>/dev/null; then exit 0; fi
+
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 

@@ -8,17 +8,26 @@ Create a complete Laravel API endpoint for "$ARGUMENTS".
 
 ## Workflow
 
-### 1. Plan the Endpoint
+### 1. Detect API Structure
+
+Before scaffolding, scan the project to determine:
+- **API route file**: Look for `routes/api.php`, `routes/api/v2.php`, `routes/api/v1.php`, or similar
+- **API namespace**: Look for existing controllers in `app/Http/Controllers/Api/` — detect if they use versioned subdirectories (`V1/`, `V2/`) or a flat structure
+- **Existing patterns**: Read 1-2 existing API controllers, resources, and form requests to match the project's conventions
+
+Use the detected structure for all file paths below. If no API structure exists, default to `app/Http/Controllers/Api/`.
+
+### 2. Plan the Endpoint
 
 Determine the resource structure:
 - **Resource name**: $ARGUMENTS (singular, PascalCase)
-- **Route prefix**: `/api/v2/{resource}` (pluralized, kebab-case)
+- **Route prefix**: `/{resource}` (pluralized, kebab-case) in the detected route file
 - **HTTP methods**: Decide which CRUD operations are needed (index, show, store, update, destroy)
 - Ask the user to confirm or adjust before proceeding
 
-### 2. Create the Route
+### 3. Create the Route
 
-Add routes to the appropriate API route file (typically `routes/api/v2.php` or `routes/api.php`):
+Add routes to the detected API route file:
 
 ```php
 Route::apiResource('{{RESOURCE_PLURAL}}', {{RESOURCE_NAME}}Controller::class);
@@ -26,33 +35,33 @@ Route::apiResource('{{RESOURCE_PLURAL}}', {{RESOURCE_NAME}}Controller::class);
 
 Or individual routes if only specific methods are needed.
 
-### 3. Create the Controller
+### 4. Create the Controller
 
-Create `app/Http/Controllers/Api/V2/{{RESOURCE_NAME}}Controller.php`:
+Create the controller in the detected API controller namespace:
 - Extend the base API controller
-- Implement only the methods defined in step 1
+- Implement only the methods defined in step 2
 - Use form request validation for store/update
 - Return API resources for consistent response shapes
 - Follow existing controller patterns in the project
 
-### 4. Create the Form Request
+### 5. Create the Form Request
 
-Create `app/Http/Requests/Api/V2/{{RESOURCE_NAME}}Request.php`:
+Create the form request in the detected API request namespace:
 - Define validation rules for store/update
 - Use `authorize()` for authorization logic
 - Follow existing form request patterns
 
-### 5. Create the API Resource
+### 6. Create the API Resource
 
-Create `app/Http/Resources/Api/V2/{{RESOURCE_NAME}}Resource.php`:
+Create the API resource in the detected API resource namespace:
 - Define the response shape in `toArray()`
 - Use snake_case keys for JSON output
 - Include only necessary fields
 - Follow existing resource patterns
 
-### 6. Create Tests
+### 7. Create Tests
 
-Create `tests/Feature/Api/V2/{{RESOURCE_NAME}}Test.php`:
+Create the test file following existing test directory structure:
 - Use Pest `describe`/`it` syntax
 - Test each endpoint method (index, show, store, update, destroy)
 - Test validation rules
@@ -60,11 +69,11 @@ Create `tests/Feature/Api/V2/{{RESOURCE_NAME}}Test.php`:
 - Use model factories for test data
 - Follow existing test patterns in the project
 
-### 7. Verify
+### 8. Verify
 
 - Run the new tests: `php artisan test --compact --filter={{RESOURCE_NAME}}`
 - Check route registration: `php artisan route:list --path={{RESOURCE_PLURAL}}`
-- Verify no lint errors: `./vendor/bin/{{FORMATTER_COMMAND}} lint`
+- Verify no lint errors: `./vendor/bin/{{FORMATTER_COMMAND}}`
 
 ## Output
 

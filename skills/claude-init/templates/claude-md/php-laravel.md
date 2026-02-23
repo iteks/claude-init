@@ -6,15 +6,15 @@
 
 - PHP {{PHP_VERSION}} / Laravel {{LARAVEL_VERSION}}
 - Database: {{DATABASE}}
-- Testing: Pest
+- Testing: {{TEST_FRAMEWORK}}
 - Formatting: {{FORMATTER}}
 - Package Manager: Composer
 
 ## Local Development
 
 - **Dev URL**: {{DEV_URL}}
-- **Start**: `php artisan serve` or {{DEV_COMMAND}}
-- **Tests**: `php artisan test --compact`
+- **Start**: `php artisan serve` or `{{DEV_COMMAND}}`
+- **Tests**: `{{TEST_COMMAND}}`
 - **Format**: `./vendor/bin/{{FORMATTER_COMMAND}}`
 
 ## Architecture
@@ -31,11 +31,11 @@
 | `app/Http/Requests/` | Form request validation |
 | `database/migrations/` | Database migrations |
 | `routes/` | Route definitions |
-| `tests/` | Pest test files |
+| `tests/` | Test files |
 
 ## Conventions
 
-- **Indentation**: Tabs (enforced by {{FORMATTER}})
+- **Indentation**: {{INDENT_STYLE}}
 - **Naming**: PSR-12 conventions
 - **Models**: Always use factories in tests, never raw DB inserts
 - **Migrations**: Always include `down()` method; never run `migrate:fresh` on primary DB
@@ -55,7 +55,7 @@ Use `EnterPlanMode` for any task that:
 
 After modifying 2+ files:
 - Offer to run `php artisan test --compact --filter=RelevantTest`
-- Offer to run `./vendor/bin/{{FORMATTER_COMMAND}} lint`
+- Offer to run `./vendor/bin/{{FORMATTER_COMMAND}}` (e.g., `duster lint` or `pint --test`)
 - Offer a code review via the code-reviewer agent
 - For security-sensitive changes (auth, input handling, database queries), offer the security-reviewer agent
 - For new code lacking test coverage, offer the test-generator agent
